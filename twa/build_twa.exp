@@ -1,0 +1,169 @@
+#!/usr/bin/expect -f
+# Automate bubblewrap init for IonMan DNS TWA
+
+set timeout 300
+set env(JAVA_HOME) "/usr/lib/jvm/java-21-openjdk-amd64"
+set env(ANDROID_HOME) "$env(HOME)/.bubblewrap/android_sdk"
+
+cd "/var/www/html/ionman-dns/twa"
+
+spawn bubblewrap init --manifest=https://server.makoyot.xyz/dns/manifest.json
+
+# Domain
+expect "Domain:"
+send "server.makoyot.xyz\r"
+
+# URL path
+expect "URL path:"
+send "/dns/subscribe\r"
+
+# App name
+expect "Name:"
+send "IonMan DNS\r"
+
+# Launcher name
+expect "Launcher name:"
+send "IonMan DNS\r"
+
+# Theme color
+expect -re "Theme color|themeColor"
+send "#0A0A0F\r"
+
+# Theme color dark (if asked)
+expect {
+    -re "Theme color dark|themeColorDark" {
+        send "#0A0A0F\r"
+        exp_continue
+    }
+    -re "Navigation color|navigationColor" {
+        send "#0A0A0F\r"
+    }
+}
+
+# Navigation color dark
+expect {
+    -re "Navigation color dark|navigationColorDark" {
+        send "#0A0A0F\r"
+        exp_continue
+    }
+    -re "Navigation divider|navigationDivider" {
+        send "#0A0A0F\r"
+    }
+}
+
+# Navigation divider dark
+expect {
+    -re "Navigation divider.*dark|navigationDividerDark" {
+        send "#0A0A0F\r"
+        exp_continue
+    }
+    -re "Background color|backgroundColor" {
+        send "#0A0A0F\r"
+    }
+}
+
+# Background color (may already be handled)
+expect {
+    -re "Background color|backgroundColor" {
+        send "#0A0A0F\r"
+        exp_continue
+    }
+    -re "Splash screen" {
+        send "300\r"
+    }
+    -re "Package|packageId" {
+        send "com.ionman.dns\r"
+    }
+}
+
+# Keep trying to match and respond to all remaining prompts
+expect {
+    -re "Splash.*fade" {
+        send "300\r"
+        exp_continue
+    }
+    -re "App version name" {
+        send "1.0.0\r"
+        exp_continue
+    }
+    -re "App version code" {
+        send "1\r"
+        exp_continue
+    }
+    -re "Package.*[Ii][Dd]" {
+        send "com.ionman.dns\r"
+        exp_continue
+    }
+    -re "Signing key.*location|keystore.*path|Key store" {
+        send "./ionman-dns.keystore\r"
+        exp_continue
+    }
+    -re "Key name|Key alias" {
+        send "ionman-dns\r"
+        exp_continue
+    }
+    -re "Key.*password|Keystore.*password|store.*password" {
+        send "ionman246\r"
+        exp_continue
+    }
+    -re "another.*URL|shortcut" {
+        send "n\r"
+        exp_continue
+    }
+    -re "notification.*delegation" {
+        send "n\r"
+        exp_continue
+    }
+    -re "location.*delegation" {
+        send "n\r"
+        exp_continue
+    }
+    -re "Play Billing" {
+        send "n\r"
+        exp_continue
+    }
+    -re "generate.*project|proceed|overwrite|continue" {
+        send "y\r"
+        exp_continue
+    }
+    -re "fallback" {
+        send "customtabs\r"
+        exp_continue
+    }
+    -re "display.*mode" {
+        send "standalone\r"
+        exp_continue
+    }
+    -re "orientation" {
+        send "portrait\r"
+        exp_continue
+    }
+    -re "fingerprint|SHA.*256" {
+        send "0D:BC:86:F3:28:02:E7:AF:4A:AF:52:19:65:27:ED:15:57:CA:11:CF:50:1B:C2:22:C8:8A:5A:ED:1E:D6:67:AE\r"
+        exp_continue
+    }
+    -re "SDK.*version|minSdk" {
+        send "19\r"
+        exp_continue
+    }
+    -re "ChromeOS" {
+        send "n\r"
+        exp_continue
+    }
+    -re "Meta Quest" {
+        send "n\r"
+        exp_continue
+    }
+    -re "site.*settings" {
+        send "y\r"
+        exp_continue
+    }
+    -re "Generating|Building|downloading" {
+        exp_continue
+    }
+    eof {
+        puts "\n=== Bubblewrap init completed ==="
+    }
+}
+
+wait

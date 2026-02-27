@@ -1,0 +1,329 @@
+{
+  "mobile_legends": {
+    "label": "Mobile Legends",
+    "icon": "Swords",
+    "color": "#3B82F6",
+    "description": "Mobile Legends: Bang Bang (Moonton)",
+    "default_blocked": true,
+    "domains": ["mobilelegends.com", "moonton.com", "m.mobilelegends.com", "api.mobilelegends.com"],
+    "ports": [
+      { "proto": "tcp", "range": "5000-5221", "desc": "ML Game Server" },
+      { "proto": "udp", "range": "5000-5221", "desc": "ML Game Server" },
+      { "proto": "tcp", "range": "5551-5559", "desc": "ML Login/Auth" },
+      { "proto": "udp", "range": "5551-5559", "desc": "ML Login/Auth" },
+      { "proto": "tcp", "range": "30000-30300", "desc": "ML Match Server" },
+      { "proto": "udp", "range": "30000-30300", "desc": "ML Match Server" },
+      { "proto": "tcp", "range": "9000-9010", "desc": "ML Streaming" },
+      { "proto": "udp", "range": "9000-9010", "desc": "ML Streaming" },
+      { "proto": "tcp", "range": "8443", "desc": "ML API" },
+      { "proto": "tcp", "range": "8001", "desc": "ML CDN" }
+    ],
+    "server_ips": [
+      "52.74.0.0/16",
+      "13.228.0.0/16",
+      "18.136.0.0/16",
+      "54.169.0.0/16"
+    ]
+  },
+  "pubg": {
+    "label": "PUBG Mobile",
+    "icon": "Target",
+    "color": "#F59E0B",
+    "description": "PUBG Mobile / BGMI (Krafton/Tencent)",
+    "default_blocked": true,
+    "domains": ["pubg.com", "pubgmobile.com", "krafton.com", "accounts.pubg.com"],
+    "ports": [
+      { "proto": "tcp", "range": "7086-7995", "desc": "PUBG Game Server" },
+      { "proto": "udp", "range": "7086-7995", "desc": "PUBG Game Server" },
+      { "proto": "tcp", "range": "10012", "desc": "PUBG Login" },
+      { "proto": "udp", "range": "10012", "desc": "PUBG Login" },
+      { "proto": "tcp", "range": "17500", "desc": "PUBG Match" },
+      { "proto": "udp", "range": "17500", "desc": "PUBG Match" },
+      { "proto": "tcp", "range": "20000-20002", "desc": "PUBG Voice" },
+      { "proto": "udp", "range": "20000-20002", "desc": "PUBG Voice" },
+      { "proto": "tcp", "range": "10491", "desc": "PUBG Relay" },
+      { "proto": "udp", "range": "10491", "desc": "PUBG Relay" },
+      { "proto": "tcp", "range": "13006", "desc": "PUBG Update" },
+      { "proto": "udp", "range": "8011-8013", "desc": "PUBG Battle" }
+    ],
+    "server_ips": []
+  },
+  "free_fire": {
+    "label": "Free Fire",
+    "icon": "Flame",
+    "color": "#EF4444",
+    "description": "Garena Free Fire",
+    "default_blocked": true,
+    "domains": ["garena.com", "ff.garena.com"],
+    "ports": [
+      { "proto": "tcp", "range": "7006-7907", "desc": "FF Game Server" },
+      { "proto": "udp", "range": "7006-7907", "desc": "FF Game Server" },
+      { "proto": "tcp", "range": "39698", "desc": "FF Login" },
+      { "proto": "udp", "range": "39698", "desc": "FF Login" },
+      { "proto": "tcp", "range": "39779", "desc": "FF Match" },
+      { "proto": "udp", "range": "39779", "desc": "FF Match" },
+      { "proto": "tcp", "range": "10000-10020", "desc": "FF Voice Chat" },
+      { "proto": "udp", "range": "10000-10020", "desc": "FF Voice Chat" }
+    ],
+    "server_ips": []
+  },
+  "genshin_impact": {
+    "label": "Genshin Impact",
+    "icon": "Sparkles",
+    "color": "#8B5CF6",
+    "description": "Genshin Impact / HoYoverse Games",
+    "default_blocked": true,
+    "domains": ["genshin.hoyoverse.com", "hoyoverse.com", "mihoyo.com"],
+    "ports": [
+      { "proto": "tcp", "range": "22101-22102", "desc": "Genshin Game" },
+      { "proto": "udp", "range": "22101-22102", "desc": "Genshin Game" },
+      { "proto": "tcp", "range": "28041-28042", "desc": "Genshin Login" },
+      { "proto": "udp", "range": "28041-28042", "desc": "Genshin Login" },
+      { "proto": "tcp", "range": "8888", "desc": "Genshin API" }
+    ],
+    "server_ips": []
+  },
+  "honkai_star_rail": {
+    "label": "Honkai Star Rail",
+    "icon": "Sparkles",
+    "color": "#A855F7",
+    "description": "Honkai: Star Rail (HoYoverse)",
+    "default_blocked": true,
+    "domains": ["honkaistarrail.com", "hoyolab.com"],
+    "ports": [
+      { "proto": "tcp", "range": "22301-22302", "desc": "HSR Game Server" },
+      { "proto": "udp", "range": "22301-22302", "desc": "HSR Game Server" },
+      { "proto": "tcp", "range": "42301-42302", "desc": "HSR Dispatch" },
+      { "proto": "udp", "range": "42301-42302", "desc": "HSR Dispatch" },
+      { "proto": "tcp", "range": "8888", "desc": "HSR API" }
+    ],
+    "server_ips": []
+  },
+  "call_of_duty": {
+    "label": "Call of Duty Mobile",
+    "icon": "Crosshair",
+    "color": "#10B981",
+    "description": "Call of Duty: Mobile (Activision)",
+    "default_blocked": true,
+    "domains": ["callofduty.com", "activision.com"],
+    "ports": [
+      { "proto": "tcp", "range": "3074", "desc": "CoD Game" },
+      { "proto": "udp", "range": "3074", "desc": "CoD Game" },
+      { "proto": "udp", "range": "3478-3480", "desc": "CoD STUN" },
+      { "proto": "tcp", "range": "27014-27050", "desc": "CoD Match" },
+      { "proto": "udp", "range": "27000-27031", "desc": "CoD Match" }
+    ],
+    "server_ips": []
+  },
+  "valorant": {
+    "label": "Valorant",
+    "icon": "Shield",
+    "color": "#DC2626",
+    "description": "Valorant (Riot Games)",
+    "default_blocked": true,
+    "domains": ["playvalorant.com", "riotgames.com", "riot.games"],
+    "ports": [
+      { "proto": "tcp", "range": "7000-8999", "desc": "Valorant Game" },
+      { "proto": "udp", "range": "7000-8999", "desc": "Valorant Game" },
+      { "proto": "tcp", "range": "2099", "desc": "Riot Client" },
+      { "proto": "tcp", "range": "5222-5223", "desc": "Riot Chat" }
+    ],
+    "server_ips": []
+  },
+  "league_of_legends": {
+    "label": "League of Legends",
+    "icon": "Swords",
+    "color": "#C9AA71",
+    "description": "League of Legends (Riot Games)",
+    "default_blocked": true,
+    "domains": ["leagueoflegends.com"],
+    "ports": [
+      { "proto": "tcp", "range": "5000-5500", "desc": "LoL Game Server" },
+      { "proto": "udp", "range": "5000-5500", "desc": "LoL Game Server" },
+      { "proto": "tcp", "range": "8393-8400", "desc": "LoL Patcher" },
+      { "proto": "tcp", "range": "2099", "desc": "PVP.net Login" },
+      { "proto": "tcp", "range": "5222-5223", "desc": "LoL Chat (XMPP)" }
+    ],
+    "server_ips": []
+  },
+  "fortnite": {
+    "label": "Fortnite",
+    "icon": "Target",
+    "color": "#703BE7",
+    "description": "Fortnite / Epic Games",
+    "default_blocked": true,
+    "domains": ["epicgames.com", "fortnite.com", "cdn.unrealengine.com"],
+    "ports": [
+      { "proto": "tcp", "range": "5222", "desc": "Epic XMPP" },
+      { "proto": "tcp", "range": "5795-5847", "desc": "Epic Game Services" },
+      { "proto": "udp", "range": "5795-5847", "desc": "Epic Game Services" },
+      { "proto": "udp", "range": "9000-9100", "desc": "Fortnite Game Server" }
+    ],
+    "server_ips": []
+  },
+  "steam": {
+    "label": "Steam",
+    "icon": "Gamepad2",
+    "color": "#1B2838",
+    "description": "Steam / Valve (CS2, Dota 2, etc.)",
+    "default_blocked": true,
+    "domains": ["steampowered.com", "steamcommunity.com", "steamstatic.com", "steamcdn-a.akamaihd.net", "dota2.com"],
+    "ports": [
+      { "proto": "tcp", "range": "27015-27050", "desc": "Steam Game Server" },
+      { "proto": "udp", "range": "27000-27100", "desc": "Steam Game Traffic" },
+      { "proto": "udp", "range": "4380", "desc": "Steam P2P" },
+      { "proto": "tcp", "range": "27036-27037", "desc": "Steam LAN Transfer" }
+    ],
+    "server_ips": []
+  },
+  "clash_of_clans": {
+    "label": "Clash of Clans",
+    "icon": "Shield",
+    "color": "#F7A800",
+    "description": "Supercell Games (CoC, Clash Royale, Brawl Stars)",
+    "default_blocked": true,
+    "domains": ["supercell.com", "clashofclans.com"],
+    "ports": [
+      { "proto": "tcp", "range": "9339", "desc": "Supercell Game Server" },
+      { "proto": "udp", "range": "9339", "desc": "Supercell Game Server" }
+    ],
+    "server_ips": [
+      "13.32.0.0/15",
+      "54.86.0.0/16"
+    ]
+  },
+  "among_us": {
+    "label": "Among Us",
+    "icon": "Target",
+    "color": "#C51111",
+    "description": "Among Us (Innersloth)",
+    "default_blocked": true,
+    "domains": ["innersloth.com"],
+    "ports": [
+      { "proto": "udp", "range": "22023", "desc": "Among Us Game Server" },
+      { "proto": "tcp", "range": "22023", "desc": "Among Us Game Server" }
+    ],
+    "server_ips": []
+  },
+  "blizzard": {
+    "label": "Blizzard / Battle.net",
+    "icon": "Shield",
+    "color": "#00AEFF",
+    "description": "Overwatch, WoW, Diablo (Blizzard Entertainment)",
+    "default_blocked": true,
+    "domains": ["blizzard.com", "battle.net"],
+    "ports": [
+      { "proto": "tcp", "range": "1119-1120", "desc": "Battle.net Client" },
+      { "proto": "tcp", "range": "3724", "desc": "WoW Game Server" },
+      { "proto": "udp", "range": "3478-3479", "desc": "Battle.net Voice" },
+      { "proto": "tcp", "range": "6112-6114", "desc": "Blizzard Legacy" },
+      { "proto": "udp", "range": "6112-6114", "desc": "Blizzard Legacy" },
+      { "proto": "tcp", "range": "26500", "desc": "Overwatch" }
+    ],
+    "server_ips": []
+  },
+  "ea_games": {
+    "label": "EA / Origin",
+    "icon": "Gamepad2",
+    "color": "#FF4747",
+    "description": "EA Games, Origin, FIFA, Battlefield",
+    "default_blocked": true,
+    "domains": ["ea.com", "origin.com"],
+    "ports": [
+      { "proto": "tcp", "range": "9960-9969", "desc": "Origin Client" },
+      { "proto": "udp", "range": "1024-1124", "desc": "EA Game Server" },
+      { "proto": "tcp", "range": "3659", "desc": "Battlefield Server" },
+      { "proto": "udp", "range": "3659", "desc": "Battlefield Server" },
+      { "proto": "udp", "range": "3478", "desc": "EA STUN" }
+    ],
+    "server_ips": []
+  },
+  "ubisoft": {
+    "label": "Ubisoft",
+    "icon": "Gamepad2",
+    "color": "#0070FF",
+    "description": "Ubisoft Connect (Rainbow Six, Assassin's Creed)",
+    "default_blocked": true,
+    "domains": ["ubisoft.com", "ubi.com"],
+    "ports": [
+      { "proto": "tcp", "range": "14000-14001", "desc": "Uplay Client" },
+      { "proto": "udp", "range": "14000-14001", "desc": "Uplay Client" },
+      { "proto": "tcp", "range": "3074-3075", "desc": "Ubisoft Game" },
+      { "proto": "udp", "range": "3074-3075", "desc": "Ubisoft Game" }
+    ],
+    "server_ips": []
+  },
+  "xbox_live": {
+    "label": "Xbox Live",
+    "icon": "Gamepad2",
+    "color": "#107C10",
+    "description": "Xbox Live / Microsoft Gaming",
+    "default_blocked": true,
+    "domains": ["xbox.com", "xbox.live.com"],
+    "ports": [
+      { "proto": "tcp", "range": "3074", "desc": "Xbox Live" },
+      { "proto": "udp", "range": "3074", "desc": "Xbox Live" },
+      { "proto": "udp", "range": "88", "desc": "Xbox Kerberos" },
+      { "proto": "udp", "range": "500", "desc": "Xbox IPSec" },
+      { "proto": "udp", "range": "3544", "desc": "Xbox Teredo" },
+      { "proto": "udp", "range": "4500", "desc": "Xbox NAT-T" }
+    ],
+    "server_ips": []
+  },
+  "playstation": {
+    "label": "PlayStation",
+    "icon": "Gamepad2",
+    "color": "#003087",
+    "description": "PlayStation Network (PSN)",
+    "default_blocked": true,
+    "domains": ["playstation.com", "store.playstation.com"],
+    "ports": [
+      { "proto": "tcp", "range": "1935", "desc": "PSN Streaming" },
+      { "proto": "tcp", "range": "3478-3480", "desc": "PSN STUN/TURN" },
+      { "proto": "udp", "range": "3478-3479", "desc": "PSN STUN" },
+      { "proto": "tcp", "range": "3658", "desc": "PSN P2P" },
+      { "proto": "udp", "range": "3658", "desc": "PSN P2P" }
+    ],
+    "server_ips": []
+  },
+  "nintendo": {
+    "label": "Nintendo",
+    "icon": "Gamepad2",
+    "color": "#E60012",
+    "description": "Nintendo Switch Online",
+    "default_blocked": true,
+    "domains": ["nintendo.com", "accounts.nintendo.com"],
+    "ports": [
+      { "proto": "tcp", "range": "6667", "desc": "Nintendo Friends" },
+      { "proto": "udp", "range": "45000-65535", "desc": "Nintendo P2P" },
+      { "proto": "tcp", "range": "12400-12500", "desc": "Nintendo Game" }
+    ],
+    "server_ips": []
+  },
+  "roblox": {
+    "label": "Roblox",
+    "icon": "Box",
+    "color": "#EC4899",
+    "description": "Roblox Platform",
+    "default_blocked": false,
+    "domains": ["roblox.com", "web.roblox.com", "apis.roblox.com", "assetgame.roblox.com"],
+    "ports": [
+      { "proto": "udp", "range": "49152-65535", "desc": "Roblox Game (high ports)" },
+      { "proto": "tcp", "range": "3103", "desc": "Roblox Service" }
+    ],
+    "server_ips": []
+  },
+  "minecraft": {
+    "label": "Minecraft",
+    "icon": "Box",
+    "color": "#84CC16",
+    "description": "Minecraft (Java & Bedrock)",
+    "default_blocked": false,
+    "domains": ["minecraft.net", "mojang.com"],
+    "ports": [
+      { "proto": "tcp", "range": "25565", "desc": "MC Java Server" },
+      { "proto": "udp", "range": "19132-19133", "desc": "MC Bedrock Server" }
+    ],
+    "server_ips": []
+  }
+}

@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Theme CSS Variables ───────────────────────────
+   dark-* palette is driven by CSS custom properties.
+   The scale goes: 950 = deepest bg → 50 = lightest/darkest text.
+   "foreground" replaces hard-coded text-white for content text. */
+
+:root {
+  /* Dark theme (default) */
+  --d-50:  224 224 224;
+  --d-100: 204 204 204;
+  --d-200: 170 170 170;
+  --d-300: 136 136 136;
+  --d-400: 102 102 102;
+  --d-500: 68 68 68;
+  --d-600: 51 51 51;
+  --d-700: 34 34 34;
+  --d-800: 26 26 26;
+  --d-900: 17 17 17;
+  --d-950: 8 8 8;
+  --foreground: 255 255 255;
+  --scrollbar-thumb: #222222;
+  --scrollbar-track: #080808;
+  --scrollbar-hover: #333333;
+}
+
+.light {
+  /* Light theme overrides */
+  --d-50:  15 23 42;        /* slate-900 — darkest text */
+  --d-100: 30 41 59;        /* slate-800 */
+  --d-200: 51 65 85;        /* slate-700 */
+  --d-300: 71 85 105;       /* slate-600 */
+  --d-400: 100 116 139;     /* slate-500 — muted text */
+  --d-500: 148 163 184;     /* slate-400 — placeholder */
+  --d-600: 203 213 225;     /* slate-300 — input border */
+  --d-700: 226 232 240;     /* slate-200 — card border */
+  --d-800: 241 245 249;     /* slate-100 — input bg */
+  --d-900: 255 255 255;     /* white — card bg */
+  --d-950: 248 250 252;     /* slate-50 — page bg */
+  --foreground: 15 23 42;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-hover: #94a3b8;
+}
+
+/* ─── Light-mode text-white override ────────────────
+   In light mode, text-white on surface backgrounds should become dark.
+   But text-white on colored (primary/green/red/etc) buttons stays white. */
+.light .text-white {
+  --tw-text-opacity: 1;
+  color: rgb(15 23 42 / var(--tw-text-opacity));
+}
+/* Exceptions: keep white text on colored backgrounds */
+.light [class*="bg-primary"].text-white,
+.light [class*="bg-green"].text-white,
+.light [class*="bg-red"].text-white,
+.light [class*="bg-blue"].text-white,
+.light [class*="bg-yellow"].text-white,
+.light [class*="bg-orange"].text-white,
+.light [class*="bg-danger"].text-white,
+.light [class*="bg-safe"].text-white {
+  color: rgb(255 255 255 / var(--tw-text-opacity)) !important;
+}
+
+/* ─── Scrollbar ────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}

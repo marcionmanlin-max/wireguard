@@ -1,0 +1,34 @@
+[Unit]
+Description=IonMan DNS Recursive Resolver
+After=network.target mysql.service mariadb.service
+Wants=mysql.service mariadb.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/html/ionman-dns/engine
+ExecStart=/usr/bin/python3 /var/www/html/ionman-dns/engine/ionman_resolver.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ionman-resolver
+
+# Environment
+Environment=IONMAN_RESOLVER_ADDR=127.0.0.1
+Environment=IONMAN_RESOLVER_PORT=5300
+Environment=IONMAN_DB_HOST=localhost
+Environment=IONMAN_DB_USER=mimp
+Environment=IONMAN_DB_PASS=Freemason.246
+Environment=IONMAN_DB_NAME=ionman_dns
+Environment=IONMAN_RESOLVER_CONFIG=/var/www/html/ionman-dns/config/resolver.json
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=false
+ProtectHome=true
+ReadWritePaths=/tmp /var/www/html/ionman-dns/config
+
+[Install]
+WantedBy=multi-user.target

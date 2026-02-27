@@ -1,0 +1,23 @@
+[Unit]
+Description=IonMan DNS - Per-Peer Category Blocking Proxy
+After=network.target mariadb.service dnsmasq.service
+Wants=dnsmasq.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u /var/www/html/ionman-dns/engine/dns_proxy.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ionman-dns-proxy
+
+# Security hardening
+ProtectSystem=strict
+ReadWritePaths=/var/www/html/ionman-dns/config
+NoNewPrivileges=false
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

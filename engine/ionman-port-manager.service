@@ -1,0 +1,14 @@
+[Unit]
+Description=IonMan DNS - Port Blocking Manager
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 -u /var/www/html/ionman-dns/engine/port_manager.py daemon
+ExecReload=/usr/bin/python3 -u /var/www/html/ionman-dns/engine/port_manager.py sync
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

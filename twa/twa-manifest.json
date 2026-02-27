@@ -1,0 +1,57 @@
+{
+  "packageId": "com.ionman.dns",
+  "host": "server.makoyot.xyz",
+  "name": "IonMan DNS",
+  "launcherName": "IonMan DNS",
+  "display": "standalone",
+  "themeColor": "#0A0A0F",
+  "themeColorDark": "#0A0A0F",
+  "navigationColor": "#0A0A0F",
+  "navigationColorDark": "#0A0A0F",
+  "navigationDividerColor": "#0A0A0F",
+  "navigationDividerColorDark": "#0A0A0F",
+  "backgroundColor": "#0A0A0F",
+  "enableNotifications": false,
+  "startUrl": "/dns/subscribe",
+  "iconUrl": "https://server.makoyot.xyz/dns/icons/icon-512x512.png",
+  "maskableIconUrl": "https://server.makoyot.xyz/dns/icons/maskable-512x512.png",
+  "monochromeIconUrl": "",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./ionman-dns.keystore",
+    "alias": "ionman-dns"
+  },
+  "appVersionName": "y",
+  "appVersionCode": 3,
+  "shortcuts": [
+    {
+      "name": "Subscribe",
+      "shortName": "Subscribe",
+      "url": "/dns/subscribe",
+      "chosenIconUrl": "https://server.makoyot.xyz/dns/icons/icon-96x96.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://server.makoyot.xyz/dns/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://server.makoyot.xyz/dns/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [
+    {
+      "name": "ionman-dns",
+      "value": "0D:BC:86:F3:28:02:E7:AF:4A:AF:52:19:65:27:ED:15:57:CA:11:CF:50:1B:C2:22:C8:8A:5A:ED:1E:D6:67:AE"
+    }
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "y"
+}
