@@ -1,156 +1,397 @@
 /**
  * Setup screen — shown on first launch.
- * Steps: 1) Server URL  2) Paste WireGuard config  3) Done
+ * Methods: QR code scan | .conf file import | Subscriber credentials
  */
 import React, { useState } from 'react';
 
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+function parseWGConfig(text) {
+  return {
+    name:     text.match(/^#\s*Name\s*=\s*(.+)$/im)?.[1]?.trim() || 'ionman',
+    address:  text.match(/^Address\s*=\s*(.+)$/im)?.[1]?.trim()  || '—',
+    dns:      text.match(/^DNS\s*=\s*(.+)$/im)?.[1]?.trim()       || '—',
+    endpoint: text.match(/^Endpoint\s*=\s*(.+)$/im)?.[1]?.trim()  || '—',
+  };
+}
+
+async function decodeQRFromDataUrl(dataUrl) {
+  const jsQR = (await import('jsqr')).default;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code) resolve(code.data);
+      else reject(new Error('No QR code detected in image'));
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
+}
+
+// ── sub-components ───────────────────────────────────────────────────────────
+
+function MethodCard({ icon, label, desc, onClick }) {
+  return (
+    <button onClick={onClick} className="method-card">
+      <span className="method-card-icon">{icon}</span>
+      <span className="method-card-label">{label}</span>
+      <span className="method-card-desc">{desc}</span>
+    </button>
+  );
+}
+
+function ConfigPreview({ parsed }) {
+  const rows = [
+    { label: 'Tunnel',   value: parsed.name },
+    { label: 'Address',  value: parsed.address },
+    { label: 'DNS',      value: parsed.dns },
+    { label: 'Endpoint', value: parsed.endpoint },
+  ];
+  return (
+    <div className="config-preview">
+      {rows.map(r => (
+        <div key={r.label} className="config-preview-row">
+          <span className="config-preview-key">{r.label}</span>
+          <span className="config-preview-val">{r.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── main component ───────────────────────────────────────────────────────────
+
 export default function Setup({ onComplete, showToast }) {
-  const [step,       setStep]       = useState(1);
+  // screens: 'welcome' | 'method' | 'qr' | 'file' | 'creds' | 'preview' | 'done'
+  const [screen, setScreen] = useState('welcome');
+
   const [serverUrl,  setServerUrl]  = useState('');
+  const [email,      setEmail]      = useState('');
+  const [password,   setPassword]   = useState('');
   const [configText, setConfigText] = useState('');
-  const [saving,     setSaving]     = useState(false);
-  const [wgInstalled, setWgInstalled] = useState(null);
+  const [parsed,     setParsed]     = useState(null);
+  const [filename,   setFilename]   = useState('');
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState('');
 
-  async function checkWG() {
-    const ok = await window.ionman.checkWG();
-    setWgInstalled(ok);
+  // ── navigation helpers ───────────────────────────────────────────────────
+
+  function goMethod() { setError(''); setScreen('method'); }
+
+  function selectMethod(m) {
+    setError('');
+    setConfigText('');
+    setParsed(null);
+    setFilename('');
+    setScreen(m);
   }
 
-  async function step1Next() {
-    if (!serverUrl.trim()) { showToast('Enter your server URL', 'error'); return; }
-    await window.ionman.setStore('serverUrl', serverUrl.trim());
-    await checkWG();
-    setStep(2);
-  }
-
-  async function step2Next() {
-    if (!configText.includes('[Interface]')) {
-      showToast('Paste a valid WireGuard config', 'error');
+  function toPreview(text, fname = '') {
+    const p = parseWGConfig(text);
+    if (!text.includes('[Interface]')) {
+      setError('No valid WireGuard [Interface] block found.');
       return;
     }
-    setSaving(true);
-    const r = await window.ionman.saveConfig(configText);
-    setSaving(false);
-    if (!r.ok) { showToast('Failed to save config: ' + r.error, 'error'); return; }
-    setStep(3);
+    setConfigText(text);
+    setParsed(p);
+    if (fname) setFilename(fname);
+    setError('');
+    setScreen('preview');
   }
 
-  async function finish() {
-    await window.ionman.setStore('setupDone', true);
-    onComplete();
+  async function confirmSave() {
+    setLoading(true);
+    try {
+      if (serverUrl.trim()) {
+        await window.ionman.setStore('serverUrl', serverUrl.trim());
+      }
+      const r = await window.ionman.saveConfig(configText);
+      if (!r.ok) throw new Error(r.error || 'Save failed');
+      await window.ionman.setStore('setupDone', true);
+      setScreen('done');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }
+
+  // ── QR handler ────────────────────────────────────────────────────────────
+
+  async function handleQRBrowse() {
+    setError('');
+    setLoading(true);
+    try {
+      const r = await window.ionman.openQrDialog();
+      if (!r.ok) return;
+      const text = await decodeQRFromDataUrl(r.dataUrl);
+      if (!text.includes('[Interface]')) {
+        setError('QR code does not contain a WireGuard config.');
+        return;
+      }
+      toPreview(text, 'qr-import.conf');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── File handler ─────────────────────────────────────────────────────────
+
+  async function handleFileBrowse() {
+    setError('');
+    setLoading(true);
+    try {
+      const r = await window.ionman.openConfDialog();
+      if (!r.ok) return;
+      if (!r.text.includes('[Interface]')) {
+        setError('File does not contain a valid WireGuard config.');
+        return;
+      }
+      toPreview(r.text, r.filename);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Credential handler ────────────────────────────────────────────────────
+
+  async function handleCredLogin() {
+    if (!serverUrl.trim()) { setError('Enter your server URL first.'); return; }
+    if (!email.trim())     { setError('Enter your email.');            return; }
+    if (!password)         { setError('Enter your password.');          return; }
+    setError('');
+    setLoading(true);
+    try {
+      const r = await window.ionman.subscriberLogin({
+        serverUrl: serverUrl.trim(),
+        email: email.trim(),
+        password,
+      });
+      if (!r.ok) throw new Error(r.error || 'Login failed');
+      toPreview(r.config, `${r.name || 'ionman'}.conf`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="setup-screen">
-      {step === 1 && (
-        <>
+
+      {/* ── WELCOME ── */}
+      {screen === 'welcome' && (
+        <div className="setup-panel">
           <div className="setup-logo">🛡️</div>
-          <h2 style={{ marginBottom: 6 }}>Welcome to IonMan DNS</h2>
-          <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 28, maxWidth: 320 }}>
-            Privacy-first DNS blocker + WireGuard VPN.
-            Let's get you connected in 2 steps.
-          </p>
+          <h2 className="setup-title">IonMan DNS</h2>
+          <p className="setup-sub">Privacy-first DNS blocker + WireGuard VPN client</p>
 
-          <div style={{ width: '100%', maxWidth: 340 }}>
-            <div className="input-group">
-              <label className="input-label">IonMan Server URL</label>
-              <input
-                className="input"
-                type="url"
-                placeholder="https://your-server.com"
-                value={serverUrl}
-                onChange={e => setServerUrl(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && step1Next()}
-                autoFocus
-              />
-            </div>
-            <button className="btn btn-primary" onClick={step1Next}>
-              Next →
-            </button>
-            <p style={{ color: '#475569', fontSize: 11, marginTop: 12 }}>
-              Don't have a server?{' '}
-              <span
-                style={{ color: '#6366f1', cursor: 'pointer' }}
-                onClick={() => window.ionman.openExternal('https://github.com/marcionmanlin-max/wireguard')}
-              >
-                See installation guide
-              </span>
-            </p>
-          </div>
-        </>
-      )}
-
-      {step === 2 && (
-        <>
-          <div className="setup-logo">🔑</div>
-          <h2 style={{ marginBottom: 6 }}>Import VPN Config</h2>
-          <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 16, maxWidth: 320 }}>
-            Go to your IonMan dashboard → WireGuard → your peer → Download Config.
-            Paste it below.
-          </p>
-
-          {wgInstalled === false && (
-            <div style={{
-              background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b',
-              borderRadius: 8, padding: '10px 14px', marginBottom: 16,
-              fontSize: 13, color: '#f59e0b', width: '100%', maxWidth: 340
-            }}>
-              ⚠ WireGuard is not installed.{' '}
-              <span
-                style={{ textDecoration: 'underline', cursor: 'pointer' }}
-                onClick={() => window.ionman.openExternal('https://www.wireguard.com/install/')}
-              >
-                Install now
-              </span>{' '}
-              then come back.
-            </div>
-          )}
-
-          <div style={{ width: '100%', maxWidth: 340 }}>
-            <textarea
-              className="input"
-              rows={8}
-              placeholder={'[Interface]\nPrivateKey = ...\nAddress = 10.8.0.x/32\nDNS = YOUR_SERVER_IP\n\n[Peer]\nPublicKey = ...\nEndpoint = your-server:51820\nAllowedIPs = 0.0.0.0/0'}
-              value={configText}
-              onChange={e => setConfigText(e.target.value)}
-              style={{ marginBottom: 12, fontFamily: 'monospace', fontSize: 11 }}
+          <div className="setup-url-group">
+            <label className="setup-label">
+              Server URL{' '}
+              <span style={{ color: '#64748b', fontWeight: 400 }}>(optional for file/QR)</span>
+            </label>
+            <input
+              className="setup-input"
+              type="url"
+              placeholder="https://your-server.com/dns"
+              value={serverUrl}
+              onChange={e => setServerUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && goMethod()}
+              autoFocus
             />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-ghost" style={{ flex: '0 0 80px' }} onClick={() => setStep(1)}>
-                ← Back
-              </button>
-              <button className="btn btn-primary" onClick={step2Next} disabled={saving || !configText}>
-                {saving ? 'Saving…' : 'Save Config →'}
-              </button>
-            </div>
           </div>
-        </>
-      )}
 
-      {step === 3 && (
-        <>
-          <div className="setup-logo" style={{ background: '#22c55e' }}>✓</div>
-          <h2 style={{ marginBottom: 6 }}>You're all set!</h2>
-          <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 28, maxWidth: 320 }}>
-            Your VPN config is saved. Click Connect on the home screen to start
-            routing DNS through IonMan.
-          </p>
-          <button className="btn btn-primary" style={{ maxWidth: 200 }} onClick={finish}>
-            Go to App →
+          <button className="btn-primary btn-full" onClick={goMethod}>
+            Get Started →
           </button>
-        </>
+        </div>
       )}
 
-      {/* Step indicator */}
-      <div style={{ display: 'flex', gap: 8, marginTop: 28 }}>
-        {[1, 2, 3].map(s => (
-          <div key={s} style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: s === step ? '#6366f1' : s < step ? '#22c55e' : '#2a3050',
-            transition: 'background 0.3s',
-          }} />
-        ))}
-      </div>
+      {/* ── METHOD PICKER ── */}
+      {screen === 'method' && (
+        <div className="setup-panel">
+          <button className="setup-back" onClick={() => setScreen('welcome')}>← Back</button>
+          <h2 className="setup-title">Import Config</h2>
+          <p className="setup-sub">Choose how to add your VPN tunnel</p>
+
+          <div className="method-cards">
+            <MethodCard
+              icon="📷"
+              label="Scan QR"
+              desc="Browse a QR image"
+              onClick={() => selectMethod('qr')}
+            />
+            <MethodCard
+              icon="📁"
+              label="Import File"
+              desc="Open a .conf file"
+              onClick={() => selectMethod('file')}
+            />
+            <MethodCard
+              icon="🔐"
+              label="Login"
+              desc="Use your account"
+              onClick={() => selectMethod('creds')}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── QR SCREEN ── */}
+      {screen === 'qr' && (
+        <div className="setup-panel">
+          <button className="setup-back" onClick={goMethod}>← Back</button>
+          <h2 className="setup-title">Scan QR Code</h2>
+          <p className="setup-sub">Browse a QR image exported from the IonMan portal</p>
+
+          <div
+            className="drop-zone"
+            onClick={!loading ? handleQRBrowse : undefined}
+            style={{ cursor: loading ? 'wait' : 'pointer' }}
+          >
+            <span style={{ fontSize: 38 }}>📷</span>
+            <p className="drop-zone-label">
+              {loading ? 'Decoding QR…' : 'Browse for QR image'}
+            </p>
+            <p className="drop-zone-hint">PNG · JPG · BMP · GIF</p>
+          </div>
+
+          {error && <p className="setup-error">{error}</p>}
+        </div>
+      )}
+
+      {/* ── FILE SCREEN ── */}
+      {screen === 'file' && (
+        <div className="setup-panel">
+          <button className="setup-back" onClick={goMethod}>← Back</button>
+          <h2 className="setup-title">Import .conf File</h2>
+          <p className="setup-sub">Select a WireGuard configuration file</p>
+
+          <div
+            className="drop-zone"
+            onClick={!loading ? handleFileBrowse : undefined}
+            style={{ cursor: loading ? 'wait' : 'pointer' }}
+          >
+            <span style={{ fontSize: 38 }}>📁</span>
+            <p className="drop-zone-label">
+              {loading ? 'Reading file…' : 'Browse for .conf file'}
+            </p>
+            <p className="drop-zone-hint">.conf · .txt</p>
+          </div>
+
+          {error && <p className="setup-error">{error}</p>}
+        </div>
+      )}
+
+      {/* ── CREDENTIALS SCREEN ── */}
+      {screen === 'creds' && (
+        <div className="setup-panel">
+          <button className="setup-back" onClick={goMethod}>← Back</button>
+          <h2 className="setup-title">Subscriber Login</h2>
+          <p className="setup-sub">Your config will be downloaded automatically</p>
+
+          <div className="setup-form">
+            <label className="setup-label">Server URL</label>
+            <input
+              className="setup-input"
+              type="url"
+              placeholder="https://your-server.com/dns"
+              value={serverUrl}
+              onChange={e => setServerUrl(e.target.value)}
+            />
+
+            <label className="setup-label" style={{ marginTop: 14 }}>Email</label>
+            <input
+              className="setup-input"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              autoComplete="username"
+            />
+
+            <label className="setup-label" style={{ marginTop: 14 }}>Password</label>
+            <input
+              className="setup-input"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              autoComplete="current-password"
+              onKeyDown={e => e.key === 'Enter' && handleCredLogin()}
+            />
+          </div>
+
+          {error && <p className="setup-error">{error}</p>}
+
+          <button
+            className="btn-primary btn-full"
+            onClick={handleCredLogin}
+            disabled={loading}
+            style={{ marginTop: 20 }}
+          >
+            {loading ? 'Logging in…' : 'Login & Download Config'}
+          </button>
+        </div>
+      )}
+
+      {/* ── PREVIEW / CONFIRM ── */}
+      {screen === 'preview' && parsed && (
+        <div className="setup-panel">
+          <button className="setup-back" onClick={() => setScreen('method')}>← Back</button>
+          <h2 className="setup-title">Review Config</h2>
+          <p className="setup-sub">{filename || 'wireguard.conf'}</p>
+
+          <ConfigPreview parsed={parsed} />
+
+          {error && <p className="setup-error">{error}</p>}
+
+          <button
+            className="btn-primary btn-full"
+            onClick={confirmSave}
+            disabled={loading}
+            style={{ marginTop: 20 }}
+          >
+            {loading ? 'Saving…' : 'Confirm & Save Tunnel'}
+          </button>
+        </div>
+      )}
+
+      {/* ── DONE ── */}
+      {screen === 'done' && (
+        <div className="setup-panel" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 54, marginBottom: 14 }}>✅</div>
+          <h2 className="setup-title">Tunnel Saved!</h2>
+          <p className="setup-sub">
+            <strong style={{ color: '#e2e8f0' }}>{parsed?.name || 'ionman'}</strong> is ready to use.
+          </p>
+
+          <button
+            className="btn-primary btn-full"
+            onClick={async () => { await window.ionman.connect(); onComplete(); }}
+            style={{ marginBottom: 10 }}
+          >
+            Connect Now
+          </button>
+          <button className="btn-secondary btn-full" onClick={onComplete}>
+            Go to App
+          </button>
+        </div>
+      )}
     </div>
   );
 }
