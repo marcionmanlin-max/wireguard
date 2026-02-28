@@ -201,11 +201,14 @@ async function tunnelConnect() {
 
   const wgName = tunnelNameFromPath(configPath); // e.g. 'ionman'
 
+  // Always uninstall existing tunnel first so fresh config is loaded
+  await new Promise(r => exec(`"${WG_EXE}" /uninstalltunnelservice "${wgName}"`, () => r()));
+  await new Promise(r => setTimeout(r, 800));
+
   return new Promise((resolve) => {
     exec(`"${WG_EXE}" /installtunnelservice "${configPath}"`, (err, stdout, stderr) => {
       const combined = (stderr || stdout || err?.message || '').toLowerCase();
-      const alreadyRunning = combined.includes('already') || combined.includes('exist');
-      if (err && !alreadyRunning) {
+      if (err) {
         const isAdmin = combined.includes('access') || combined.includes('denied') || combined.includes('privilege') || combined.includes('elevation');
         resolve({
           ok: false,
@@ -215,21 +218,21 @@ async function tunnelConnect() {
         });
         return;
       }
-      // Wait for service to start, then verify
-      setTimeout(() => {
-        const status = getTunnelStatus(wgName);
-        setTrayConnected(status);
-        if (!status) {
-          // Service may need more time, retry once after 2s
-          setTimeout(() => {
-            const status2 = getTunnelStatus(wgName);
-            setTrayConnected(status2);
-            resolve({ ok: status2, error: status2 ? null : 'Tunnel installed but not handshaking. Check your network.' });
-          }, 2000);
-        } else {
-          resolve({ ok: true });
-        }
-      }, 2000);
+      // Wait for service to start, then verify with retries
+      const check = (attempts) => {
+        setTimeout(() => {
+          const status = getTunnelStatus(wgName);
+          setTrayConnected(status);
+          if (status) {
+            resolve({ ok: true });
+          } else if (attempts > 1) {
+            check(attempts - 1);
+          } else {
+            resolve({ ok: false, error: 'Tunnel installed but server not responding. Make sure WireGuard is configured on the server for your account.' });
+          }
+        }, 2000);
+      };
+      check(3); // try up to 3 times × 2s = 6s total
     });
   });
 }
