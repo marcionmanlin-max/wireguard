@@ -184,45 +184,59 @@ function isWireGuardInstalled() {
   return fs.existsSync(WG_EXE);
 }
 
+// Derive WireGuard tunnel name from config filename (WG uses filename as service name)
+function tunnelNameFromPath(configPath) {
+  return path.basename(configPath, '.conf');
+}
+
 async function tunnelConnect() {
-  const configPath  = store.get('configPath');
-  const tunnelName  = store.get('tunnelName');
+  const configPath = store.get('configPath');
 
   if (!isWireGuardInstalled()) {
-    mainWindow?.webContents.send('wg-error', 'WireGuard is not installed. Please install it from wireguard.com');
-    return { ok: false, error: 'WireGuard not installed' };
+    return { ok: false, error: 'WireGuard not installed. Download from wireguard.com' };
   }
-  if (!fs.existsSync(configPath)) {
-    mainWindow?.webContents.send('wg-error', 'No VPN config found. Please import your peer config in Settings.');
-    return { ok: false, error: 'No config' };
+  if (!configPath || !fs.existsSync(configPath)) {
+    return { ok: false, error: 'No VPN config found. Go to Settings → Update VPN Config and log in first.' };
   }
 
+  const wgName = tunnelNameFromPath(configPath); // e.g. 'ionman'
+
   return new Promise((resolve) => {
-    // Install tunnel as Windows service (requires admin — app runs as admin)
     exec(`"${WG_EXE}" /installtunnelservice "${configPath}"`, (err, stdout, stderr) => {
-      if (err && !err.message.includes('already installed')) {
-        const msg = err.message || '';
-        const isAdmin = msg.toLowerCase().includes('access') || msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('privilege');
+      const combined = (stderr || stdout || err?.message || '').toLowerCase();
+      const alreadyRunning = combined.includes('already') || combined.includes('exist');
+      if (err && !alreadyRunning) {
+        const isAdmin = combined.includes('access') || combined.includes('denied') || combined.includes('privilege') || combined.includes('elevation');
         resolve({
           ok: false,
           error: isAdmin
-            ? 'Access denied — please right-click IonMan DNS.exe and choose "Run as administrator", then try again.'
-            : msg,
+            ? 'Access denied — right-click IonMan DNS.exe → Run as administrator, then try again.'
+            : (stderr || stdout || err.message).trim(),
         });
         return;
       }
-      // Wait briefly for service to start
+      // Wait for service to start, then verify
       setTimeout(() => {
-        const status = getTunnelStatus(tunnelName);
+        const status = getTunnelStatus(wgName);
         setTrayConnected(status);
-        resolve({ ok: status });
-      }, 1500);
+        if (!status) {
+          // Service may need more time, retry once after 2s
+          setTimeout(() => {
+            const status2 = getTunnelStatus(wgName);
+            setTrayConnected(status2);
+            resolve({ ok: status2, error: status2 ? null : 'Tunnel installed but not handshaking. Check your network.' });
+          }, 2000);
+        } else {
+          resolve({ ok: true });
+        }
+      }, 2000);
     });
   });
 }
 
 async function tunnelDisconnect() {
-  const tunnelName = store.get('tunnelName');
+  const configPath = store.get('configPath');
+  const tunnelName = configPath ? tunnelNameFromPath(configPath) : store.get('tunnelName');
   return new Promise((resolve) => {
     exec(`"${WG_EXE}" /uninstalltunnelservice "${tunnelName}"`, (err) => {
       setTrayConnected(false);
@@ -231,10 +245,12 @@ async function tunnelDisconnect() {
   });
 }
 
-function getTunnelStatus(tunnelName) {
+function getTunnelStatus(tunnelNameOrPath) {
   try {
     if (!isWireGuardInstalled()) return false;
-    const output = execSync(`"${WG_EXE}" show "${tunnelName}" 2>&1`, {
+    // Accept either a name or a full path — derive name from path if needed
+    const name = tunnelNameOrPath.endsWith('.conf') ? tunnelNameFromPath(tunnelNameOrPath) : tunnelNameOrPath;
+    const output = execSync(`"${WG_EXE}" show "${name}" 2>&1`, {
       timeout: 3000, encoding: 'utf8'
     });
     return output.includes('interface:') || output.includes('public key:');
@@ -246,7 +262,8 @@ function getTunnelStatus(tunnelName) {
 // ─── Status polling ───────────────────────────────────────────────────────────
 function startStatusPoll() {
   statusPoll = setInterval(() => {
-    const tunnelName = store.get('tunnelName');
+    const configPath = store.get('configPath');
+    const tunnelName = configPath ? tunnelNameFromPath(configPath) : store.get('tunnelName');
     const connected  = getTunnelStatus(tunnelName);
     if (connected !== isConnected) setTrayConnected(connected);
   }, 5000);
@@ -397,7 +414,8 @@ ipcMain.handle('minimize-window', () => mainWindow?.minimize());
 
 ipcMain.handle('wg-tunnel-stats', () => {
   try {
-    const tunnelName = store.get('tunnelName');
+    const configPath = store.get('configPath');
+    const tunnelName = configPath ? tunnelNameFromPath(configPath) : store.get('tunnelName');
     const output = execSync(`"${WG_UTIL}" show "${tunnelName}" 2>&1`, {
       timeout: 3000, encoding: 'utf8'
     });
