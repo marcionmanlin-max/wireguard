@@ -15,8 +15,8 @@ $resource = $segments[0] ?? '';
 $id = $segments[1] ?? null;
 $action = $segments[2] ?? null;
 
-// Auth middleware - protect all endpoints except auth/login, subscribe/*, and OPTIONS
-if ($method !== 'OPTIONS' && !($resource === 'auth' && $id === 'login') && $resource !== 'subscribe') {
+// Auth middleware - protect all endpoints except auth/login, subscribe/*, client/*, and OPTIONS
+if ($method !== 'OPTIONS' && !($resource === 'auth' && $id === 'login') && $resource !== 'subscribe' && $resource !== 'client') {
     $token = str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION'] ?? '');
     if ($token) {
         $auth_conn = db();
@@ -52,6 +52,9 @@ if ($method !== 'OPTIONS' && !($resource === 'auth' && $id === 'login') && $reso
 switch ($resource) {
     case 'auth':
         require_once __DIR__ . '/auth.php';
+        break;
+    case 'client':
+        require_once __DIR__ . '/client.php';
         break;
     case 'stats':
         require_once __DIR__ . '/stats.php';

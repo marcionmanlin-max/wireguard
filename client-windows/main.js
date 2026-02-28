@@ -398,8 +398,15 @@ ipcMain.handle('subscriber-login', async (_, { serverUrl, email, password }) => 
 });
 
 ipcMain.handle('open-dashboard', () => {
-  const url = store.get('serverUrl');
-  if (url) shell.openExternal(url);
+  const base     = (store.get('serverUrl') || '').replace(/\/+$/, '');
+  const subToken = store.get('subToken');
+  if (subToken) {
+    // Subscribers get the client dashboard, auto-authenticated via token
+    shell.openExternal(`${base}/client/?token=${encodeURIComponent(subToken)}`);
+  } else {
+    // Admin — open full dashboard
+    shell.openExternal(base);
+  }
 });
 
 ipcMain.handle('open-external', (_, url) => shell.openExternal(url));
