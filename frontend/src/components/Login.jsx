@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Zap, Lock, Eye, EyeOff, AlertTriangle, Smartphone, Download, Sun, Moon } from 'lucide-react'
+import { Zap, Lock, Eye, EyeOff, AlertTriangle, Smartphone, Download, Sun, Moon, Monitor } from 'lucide-react'
 import { api } from '../utils/api'
 import { useTheme } from '../contexts/ThemeContext'
 
@@ -103,22 +103,43 @@ export default function Login({ onLogin }) {
           </button>
         </form>
 
-        {/* Download Android App */}
-        <div className="mt-6 flex flex-col items-center gap-2">
-          <a
-            href="/dns/api/subscribe/apk"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-900 border border-dark-700 hover:border-primary-400/30 hover:bg-dark-800 transition-all group"
-          >
-            <div className="w-8 h-8 rounded-lg bg-primary-400/10 flex items-center justify-center group-hover:bg-primary-400/20 transition-colors">
-              <Smartphone className="w-4 h-4 text-primary-400" />
-            </div>
-            <div>
-              <p className="text-white text-sm font-medium flex items-center gap-1">
-                Get Android App <Download className="w-3 h-3 text-primary-400" />
-              </p>
-              <p className="text-dark-500 text-[10px]">IonMan DNS for Android</p>
-            </div>
-          </a>
+        {/* Download Client Apps */}
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <p className="text-dark-500 text-xs uppercase tracking-wider font-medium">Download Client App</p>
+          <div className="flex gap-3 w-full">
+            {/* Android */}
+            <a
+              href="/dns/api/subscribe/apk"
+              className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-dark-900 border border-dark-700 hover:border-primary-400/30 hover:bg-dark-800 transition-all group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-primary-400/10 flex items-center justify-center group-hover:bg-primary-400/20 transition-colors flex-shrink-0">
+                <Smartphone className="w-4 h-4 text-primary-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-white text-xs font-semibold flex items-center gap-1">
+                  Android <Download className="w-3 h-3 text-primary-400" />
+                </p>
+                <p className="text-dark-500 text-[10px] truncate">Get the APK</p>
+              </div>
+            </a>
+            {/* Windows */}
+            <a
+              href="https://github.com/marcionmanlin-max/wireguard/releases/latest/download/IonManDNS-Setup-1.0.0.exe"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-dark-900 border border-dark-700 hover:border-primary-400/30 hover:bg-dark-800 transition-all group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors flex-shrink-0">
+                <Monitor className="w-4 h-4 text-blue-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-white text-xs font-semibold flex items-center gap-1">
+                  Windows <Download className="w-3 h-3 text-blue-400" />
+                </p>
+                <p className="text-dark-500 text-[10px] truncate">Desktop App</p>
+              </div>
+            </a>
+          </div>
           <p className="text-dark-600 text-xs">
             IonMan DNS+WireGuard &middot; Secure Admin Panel
           </p>

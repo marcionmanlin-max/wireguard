@@ -63,7 +63,11 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "IonMan DNS",
+      "artifactName": "IonManDNS-Setup-${version}.${ext}",
       "include": "installer.nsh"
+    },
+    "portable": {
+      "artifactName": "IonManDNS-Portable-${version}.${ext}"
     },
     "afterSign": null
   }
