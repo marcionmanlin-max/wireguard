@@ -16,6 +16,7 @@ export default function Subscribers() {
   const [showCreate, setShowCreate] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [speedInputs, setSpeedInputs] = useState({}); // { [sub_id]: string }
   const [createForm, setCreateForm] = useState({
     email: '', password: '', full_name: '', phone: '',
     address: '', city: '', barangay: '', province: '', region: '',
@@ -97,6 +98,17 @@ export default function Subscribers() {
     });
   };
 
+  const setSpeedLimit = async (subscriberId, kbps) => {
+    setActionLoading(`speed-${subscriberId}`);
+    try {
+      await api.post('/subscribers/speed-limit', { subscriber_id: subscriberId, speed_kbps: kbps === '' ? null : Number(kbps) });
+      showSuccess(kbps === '' || kbps === null ? 'Speed limit removed (unlimited)' : `Speed limit set to ${kbps} Kbps`);
+      const res = await api.get(`/subscribers/${subscriberId}`);
+      setDetail(res);
+    } catch (e) { showError(e.message); }
+    setActionLoading('');
+  };
+
   const extendUser = async (id, days) => {
     setActionLoading(`extend-${id}`);
     try {
@@ -164,7 +176,7 @@ export default function Subscribers() {
             <UserPlus className="w-5 h-5 text-primary-400" /> Create Subscriber Account
           </h2>
           <form onSubmit={createAccount} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <label className="text-dark-400 text-xs font-medium mb-1 block">Full Name *</label>
                 <input type="text" value={createForm.full_name} onChange={e => setCreateForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Juan Dela Cruz" className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2.5 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" required />
@@ -220,7 +232,7 @@ export default function Subscribers() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total', value: data.subscribers.length, icon: Users, color: 'text-primary-400' },
           { label: 'Active', value: data.subscribers.filter(s => s.status === 'active').length, icon: CheckCircle, color: 'text-green-400' },
@@ -315,8 +327,29 @@ export default function Subscribers() {
                           <div><span className="text-dark-500">Phone:</span> <span className="text-white">{detail.phone}</span></div>
                           <div><span className="text-dark-500">Address:</span> <span className="text-white">{[detail.address, detail.barangay, detail.city, detail.province, detail.region].filter(Boolean).join(', ') || '—'}</span></div>
                           <div><span className="text-dark-500">Peer ID:</span> <span className="text-white">{detail.wg_peer_id || 'None'}</span></div>
+                          <div><span className="text-dark-500">Speed Limit:</span> <span className="text-white">{detail.speed_limit_kbps ? `${detail.speed_limit_kbps >= 1024 ? (detail.speed_limit_kbps/1024).toFixed(1)+' Mbps' : detail.speed_limit_kbps+' Kbps'}` : 'Unlimited'}</span></div>
                           <div><span className="text-dark-500">Registered:</span> <span className="text-white">{new Date(detail.created_at).toLocaleDateString()}</span></div>
                         </div>
+                        {detail.wg_peer_id && (
+                          <div className="flex items-center gap-2 mb-3 p-2.5 bg-dark-700/50 rounded-lg border border-dark-600">
+                            <span className="text-dark-400 text-xs whitespace-nowrap">⚡ Speed Limit</span>
+                            <input
+                              type="number" min="0" placeholder="e.g. 10240 = 10 Mbps (blank = unlimited)"
+                              value={speedInputs[sub.id] !== undefined ? speedInputs[sub.id] : (detail.speed_limit_kbps || '')}
+                              onChange={e => setSpeedInputs(s => ({...s, [sub.id]: e.target.value}))}
+                              onClick={e => e.stopPropagation()}
+                              className="flex-1 bg-dark-800 border border-dark-600 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-primary-400"
+                            />
+                            <span className="text-dark-500 text-xs">Kbps</span>
+                            <button
+                              onClick={e => { e.stopPropagation(); const v = speedInputs[sub.id]; setSpeedLimit(sub.id, v === undefined ? (detail.speed_limit_kbps || '') : v); }}
+                              disabled={actionLoading === `speed-${sub.id}`}
+                              className="px-3 py-1.5 bg-primary-400/15 text-primary-400 border border-primary-400/30 rounded-lg text-xs hover:bg-primary-400/25 disabled:opacity-50 whitespace-nowrap"
+                            >
+                              {actionLoading === `speed-${sub.id}` ? 'Saving…' : 'Set Limit'}
+                            </button>
+                          </div>
+                        )}
                         <div className="flex gap-2 flex-wrap">
                           {sub.status !== 'active' && (
                             <button onClick={(e) => { e.stopPropagation(); activateUser(sub.id); }} disabled={actionLoading === `activate-${sub.id}`} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 disabled:opacity-50 flex items-center gap-1">

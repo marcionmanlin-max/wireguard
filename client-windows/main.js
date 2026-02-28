@@ -400,13 +400,32 @@ ipcMain.handle('subscriber-login', async (_, { serverUrl, email, password }) => 
 ipcMain.handle('open-dashboard', () => {
   const base     = (store.get('serverUrl') || '').replace(/\/+$/, '');
   const subToken = store.get('subToken');
+
   if (subToken) {
-    // Subscribers get the client dashboard, auto-authenticated via token
+    // Subscriber: open personal dashboard, auto-auth via token
     shell.openExternal(`${base}/client/?token=${encodeURIComponent(subToken)}`);
-  } else {
-    // Admin — open full dashboard
-    shell.openExternal(base);
+    return;
   }
+
+  // WireGuard peer: parse config to get peer IP and name
+  const configPath = store.get('configPath');
+  if (configPath && fs.existsSync(configPath)) {
+    try {
+      const conf     = fs.readFileSync(configPath, 'utf8');
+      const addrLine = conf.match(/^Address\s*=\s*([^\s/]+)/im);
+      if (addrLine) {
+        const peerIp   = addrLine[1].trim();
+        const peerName = path.basename(configPath, '.conf');
+        shell.openExternal(
+          `${base}/client/?peer_ip=${encodeURIComponent(peerIp)}&peer_name=${encodeURIComponent(peerName)}`
+        );
+        return;
+      }
+    } catch (_) {}
+  }
+
+  // Admin fallback
+  shell.openExternal(base);
 });
 
 ipcMain.handle('open-external', (_, url) => shell.openExternal(url));

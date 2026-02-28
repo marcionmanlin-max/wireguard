@@ -31,6 +31,16 @@ switch ($method) {
             while ($row = $result->fetch_assoc()) $payments[] = $row;
             
             $sub['payments'] = $payments;
+            // Also fetch speed limit from wg_peers
+            if ($sub['wg_peer_id']) {
+                $ps = $conn->prepare('SELECT speed_limit_kbps FROM wg_peers WHERE id = ?');
+                $ps->bind_param('i', $sub['wg_peer_id']);
+                $ps->execute();
+                $pr = $ps->get_result()->fetch_assoc();
+                $sub['speed_limit_kbps'] = $pr ? $pr['speed_limit_kbps'] : null;
+            } else {
+                $sub['speed_limit_kbps'] = null;
+            }
             json_response($sub);
         }
         
@@ -246,6 +256,27 @@ switch ($method) {
             $stmt->bind_param($types, ...$vals);
             $stmt->execute();
             json_response(['message' => 'Subscriber updated']);
+        }
+
+        // ── speed-limit: POST /api/subscribers/speed-limit  {subscriber_id, speed_kbps}
+        if ($id === 'speed-limit') {
+            $sub_id    = (int)($data['subscriber_id'] ?? 0);
+            $speed_kbps = isset($data['speed_kbps']) && $data['speed_kbps'] !== '' && $data['speed_kbps'] !== null
+                        ? max(0, (int)$data['speed_kbps']) : null;
+            if (!$sub_id) json_error('subscriber_id required');
+            $stmt = $conn->prepare("SELECT wg_peer_id FROM subscribers WHERE id = ?");
+            $stmt->bind_param('i', $sub_id);
+            $stmt->execute();
+            $sub = $stmt->get_result()->fetch_assoc();
+            if (!$sub || !$sub['wg_peer_id']) json_error('Subscriber has no WireGuard peer assigned');
+            if ($speed_kbps === null) {
+                $conn->query("UPDATE wg_peers SET speed_limit_kbps = NULL WHERE id = {$sub['wg_peer_id']}");
+            } else {
+                $stmt2 = $conn->prepare("UPDATE wg_peers SET speed_limit_kbps = ? WHERE id = ?");
+                $stmt2->bind_param('ii', $speed_kbps, $sub['wg_peer_id']);
+                $stmt2->execute();
+            }
+            json_response(['message' => 'Speed limit updated', 'speed_kbps' => $speed_kbps]);
         }
 
         json_error('Unknown action', 404);
