@@ -124,9 +124,8 @@ export default function Login({ onLogin }) {
             </a>
             {/* Windows */}
             <a
-              href="https://github.com/marcionmanlin-max/wireguard/releases/latest/download/IonManDNS-Setup-1.0.0.exe"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/dns/apk/IonManDNS-Portable-1.0.0.zip"
+              download
               className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-dark-900 border border-dark-700 hover:border-primary-400/30 hover:bg-dark-800 transition-all group"
             >
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors flex-shrink-0">
@@ -136,7 +135,7 @@ export default function Login({ onLogin }) {
                 <p className="text-white text-xs font-semibold flex items-center gap-1">
                   Windows <Download className="w-3 h-3 text-blue-400" />
                 </p>
-                <p className="text-dark-500 text-[10px] truncate">Desktop App</p>
+                <p className="text-dark-500 text-[10px] truncate">Portable ZIP</p>
               </div>
             </a>
           </div>
