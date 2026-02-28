@@ -11,12 +11,17 @@ contextBridge.exposeInMainWorld('ionman', {
   setStore:     (key, value)  => ipcRenderer.invoke('set-store', key, value),
   getAllStore:   ()            => ipcRenderer.invoke('get-all-store'),
 
+  // Config import
+  saveConfig:       (text)        => ipcRenderer.invoke('save-wg-config', text),
+  openConfDialog:   ()            => ipcRenderer.invoke('open-conf-dialog'),
+  openQrDialog:     ()            => ipcRenderer.invoke('open-qr-dialog'),
+  subscriberLogin:  (opts)        => ipcRenderer.invoke('subscriber-login', opts),
+
   // Tunnel
   connect:      ()            => ipcRenderer.invoke('tunnel-connect'),
   disconnect:   ()            => ipcRenderer.invoke('tunnel-disconnect'),
   status:       ()            => ipcRenderer.invoke('tunnel-status'),
   tunnelStats:  ()            => ipcRenderer.invoke('wg-tunnel-stats'),
-  saveConfig:   (text)        => ipcRenderer.invoke('save-wg-config', text),
 
   // Navigation
   openDashboard:  ()          => ipcRenderer.invoke('open-dashboard'),

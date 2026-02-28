@@ -31,6 +31,7 @@ LISTEN_PORT  = int(os.environ.get('IONMAN_DNS_PORT', '53'))
 UPSTREAM_ADDR = os.environ.get('IONMAN_UPSTREAM_ADDR', '127.0.0.1')
 UPSTREAM_PORT = int(os.environ.get('IONMAN_UPSTREAM_PORT', '5353'))
 CATEGORIES_FILE = os.environ.get('IONMAN_CATEGORIES', '/var/www/html/ionman-dns/config/categories.json')
+GAME_PORTS_FILE = os.environ.get('IONMAN_GAME_PORTS', '/var/www/html/ionman-dns/config/game_ports.json')
 RELOAD_INTERVAL = 30  # seconds
 BLOCK_TTL = 300
 
@@ -63,8 +64,13 @@ class RuleEngine:
         self.peer_rules = {}      # peer_ip -> { cat_key -> bool }
         self.peer_domain_rules = {}  # peer_ip -> set of blocked domains
         self.whitelist = set()    # globally whitelisted domains (from DB whitelist table)
+        # Game-specific overrides (from port_blocking system)
+        self.game_domains = {}        # game_key -> set of domains
+        self.global_game_blocks = {}  # game_key -> bool (from settings port_block_*)
+        self.peer_game_rules = {}     # peer_ip -> { game_key -> bool }
         self.lock = threading.Lock()
         self._load_categories()
+        self._load_game_ports()
         self.reload_rules()
 
     def _load_categories(self):
@@ -85,9 +91,28 @@ class RuleEngine:
         except Exception as e:
             print(f"[RuleEngine] Error loading categories: {e}")
 
+    def _load_game_ports(self):
+        """Load game port definitions (for game→domain mapping)."""
+        try:
+            if not os.path.exists(GAME_PORTS_FILE):
+                return
+            with open(GAME_PORTS_FILE) as f:
+                data = json.load(f)
+            game_domains = {}
+            for key, info in data.items():
+                domains = set(d.lower() for d in info.get('domains', []))
+                if domains:
+                    game_domains[key] = domains
+            with self.lock:
+                self.game_domains = game_domains
+            print(f"[RuleEngine] Loaded {len(game_domains)} games with domains")
+        except Exception as e:
+            print(f"[RuleEngine] Error loading game ports: {e}")
+
     def reload_rules(self):
         """Reload categories from JSON + per-peer rules and global defaults from DB."""
         self._load_categories()  # Always reload categories to pick up new domains
+        self._load_game_ports()  # Reload game port definitions
         try:
             db = mysql.connector.connect(**DB_CONFIG)
             cursor = db.cursor(dictionary=True)
@@ -150,6 +175,25 @@ class RuleEngine:
             cursor.execute("SELECT domain FROM whitelist")
             new_whitelist = set(row['domain'].lower() for row in cursor.fetchall())
 
+            # Load game-specific port blocking overrides
+            # Global game blocks (port_block_roblox, port_block_minecraft, etc.)
+            new_global_game = {}
+            cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'port_block_%%'")
+            for row in cursor.fetchall():
+                game_key = row['setting_key'].replace('port_block_', '')
+                new_global_game[game_key] = row['setting_value'] == '1'
+
+            # Per-peer game blocks from port_blocking_rules
+            new_peer_game = {}
+            cursor.execute("""
+                SELECT client_ip, game_key, enabled FROM port_blocking_rules
+            """)
+            for row in cursor.fetchall():
+                ip = row['client_ip'].split('/')[0]
+                if ip not in new_peer_game:
+                    new_peer_game[ip] = {}
+                new_peer_game[ip][row['game_key']] = bool(row['enabled'])
+
             db.close()
 
             with self.lock:
@@ -157,24 +201,69 @@ class RuleEngine:
                 self.peer_rules = new_peer
                 self.peer_domain_rules = new_peer_domains
                 self.whitelist = new_whitelist
+                self.global_game_blocks = new_global_game
+                self.peer_game_rules = new_peer_game
 
             peer_count = len(new_peer)
             domain_peer_count = len(new_peer_domains)
             total_domain_rules = sum(len(v) for v in new_peer_domains.values())
             global_on = [k for k, v in new_global.items() if v]
+            game_allowed = [k for k, v in new_global_game.items() if not v]
             print(f"[RuleEngine] Reloaded: {peer_count} peers with custom rules, "
                   f"{domain_peer_count} peers with {total_domain_rules} domain rules, "
-                  f"global blocked: {', '.join(global_on) or 'none'}")
+                  f"global blocked: {', '.join(global_on) or 'none'}, "
+                  f"games allowed: {', '.join(game_allowed) or 'none'}")
 
         except Exception as e:
             print(f"[RuleEngine] Error reloading rules: {e}")
             traceback.print_exc()
 
+    # Adult content auto-detection keywords and TLDs
+    ADULT_TLDS = {'.xxx', '.adult', '.sex', '.porn', '.sexy'}
+    ADULT_KEYWORDS = {
+        'porn', 'xxx', 'hentai', 'nsfw', 'xvideos', 'xnxx', 'xhamster',
+        'redtube', 'youporn', 'brazzers', 'bangbros', 'naughty',
+        'camgirl', 'livecam', 'sexcam', 'chaturbate', 'stripchat',
+        'onlyfans', 'fapello', 'rule34', 'nhentai', 'e621',
+        'spankbang', 'eporner', 'tube8', 'beeg', 'porntube',
+        'pornstar', 'livejasmin', 'cam4', 'bongacams', 'myfreecams',
+        'slutty', 'milf', 'hardcore',
+    }
+    # Partial keyword matching in domain parts (avoid false positives)
+    ADULT_PART_KEYWORDS = {
+        'porn', 'xxx', 'hentai', 'nsfw', 'xvideo', 'xnxx', 'xhamster',
+        'sexcam', 'livecam', 'camgirl', 'fap',
+    }
+
+    def _is_adult_domain(self, domain):
+        """Heuristic check if domain looks like an adult/porn site.
+        Uses TLD matching and keyword detection in domain parts."""
+        # Check adult TLDs
+        for tld in self.ADULT_TLDS:
+            if domain.endswith(tld):
+                return True
+
+        # Split domain into meaningful parts (remove common TLDs)
+        parts = domain.replace('.', ' ').split()
+        for part in parts:
+            if part in self.ADULT_KEYWORDS:
+                return True
+            # Check if any part contains adult keywords (e.g., pornhub, xxxvideos)
+            for kw in self.ADULT_PART_KEYWORDS:
+                if kw in part and len(part) > len(kw):
+                    return True
+
+        return False
+
     def is_blocked(self, client_ip, domain):
         """
         Check if domain should be blocked for this client IP.
         Returns (blocked: bool, category: str|None)
-        Priority: per-peer domain rules > per-peer category rules > global defaults
+        Priority:
+          0. Whitelist always wins (never block)
+          1. Game-specific overrides from port_blocking (allow specific games even if category blocked)
+          2. Per-peer domain rules (blocklist)
+          3. Per-peer category rules > global category defaults
         Supports subdomain matching: blocking 'tiktok.com' also blocks 'www.tiktok.com'
         """
         domain = domain.lower().rstrip('.')
@@ -183,13 +272,18 @@ class RuleEngine:
             if self._domain_matches(domain, self.whitelist):
                 return False, None
 
-            # 1. Check per-peer domain-level blocklist rules first
+            # 1. Check game-specific override: if a game is explicitly allowed
+            #    for this peer (or globally), its domains bypass category blocking
+            if self._is_game_allowed(client_ip, domain):
+                return False, None
+
+            # 2. Check per-peer domain-level blocklist rules first
             peer_domains = self.peer_domain_rules.get(client_ip)
             if peer_domains:
                 if self._domain_matches(domain, peer_domains):
                     return True, 'blocklist'
 
-            # 2. Check category-level rules
+            # 3. Check category-level rules
             custom = self.peer_rules.get(client_ip)
 
             for cat_key, cat_domains in self.categories.items():
@@ -207,7 +301,51 @@ class RuleEngine:
                         if self.global_rules.get(cat_key, False):
                             return True, cat_key
 
+            # 4. Auto-detect adult/porn content by keywords and TLDs
+            #    Only triggers when porn category is globally or per-peer blocked
+            porn_blocked = False
+            if custom is not None and 'porn' in custom:
+                porn_blocked = custom['porn']
+            else:
+                porn_blocked = self.global_rules.get('porn', False)
+
+            if porn_blocked and self._is_adult_domain(domain):
+                # Auto-detected as adult, add to porn category for future lookups
+                if 'porn' in self.categories:
+                    base = domain.split('.')
+                    if len(base) >= 2:
+                        root = '.'.join(base[-2:]) if base[-1] not in ('xxx', 'adult', 'sex', 'porn', 'sexy') else '.'.join(base[-2:])
+                        self.categories['porn'].add(root)
+                print(f"[AutoDetect] Adult domain detected: {domain}")
+                return True, 'porn'
+
         return False, None
+
+    def _is_game_allowed(self, client_ip, domain):
+        """Check if domain belongs to a game that is explicitly allowed for this client.
+        If a game is unblocked in port-blocking (either globally or per-peer),
+        its domains should NOT be DNS-blocked even if the parent category is blocked.
+        """
+        for game_key, game_domain_set in self.game_domains.items():
+            if self._domain_matches(domain, game_domain_set):
+                # Check per-peer game rule first
+                peer_game = self.peer_game_rules.get(client_ip, {})
+                if game_key in peer_game:
+                    if not peer_game[game_key]:  # explicitly allowed (enabled=False)
+                        return True
+                    # explicitly blocked — don't override, let category blocking decide
+                    return False
+
+                # Fall back to global game block setting
+                if game_key in self.global_game_blocks:
+                    if not self.global_game_blocks[game_key]:  # globally allowed
+                        return True
+
+                # Fall back to game_ports.json default_blocked
+                # (we don't have default_blocked here, but if no setting exists,
+                # it means the game was never configured — don't override)
+                return False
+        return False
 
     @staticmethod
     def _domain_matches(domain, domain_set):

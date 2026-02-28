@@ -325,5 +325,34 @@
       { "proto": "udp", "range": "19132-19133", "desc": "MC Bedrock Server" }
     ],
     "server_ips": []
+  },
+  "albion_online": {
+    "label": "Albion Online",
+    "icon": "Shield",
+    "color": "#F59E0B",
+    "description": "Albion Online (Sandbox Interactive)",
+    "default_blocked": false,
+    "domains": ["albiononline.com", "sandbox-interactive.com", "live.albiononline.com", "loginserver.live.albion.zone"],
+    "ports": [
+      { "proto": "tcp", "range": "443", "desc": "Albion Login/API (HTTPS)" },
+      { "proto": "udp", "range": "5056-5057", "desc": "Albion Game Server (Photon)" }
+    ],
+    "server_ips": []
+  },
+  "mir4": {
+    "label": "MIR4",
+    "icon": "Swords",
+    "color": "#8B5CF6",
+    "description": "MIR4 (Wemade / Wemix)",
+    "default_blocked": false,
+    "domains": ["mir4global.com", "wemade.com", "wemix.com", "mir4.wemade.com", "hub-mir4.wemade.com"],
+    "ports": [
+      { "proto": "tcp", "range": "443", "desc": "MIR4 API (HTTPS)" },
+      { "proto": "tcp", "range": "10000-10100", "desc": "MIR4 Game Server" },
+      { "proto": "udp", "range": "10000-10100", "desc": "MIR4 Game Server" },
+      { "proto": "tcp", "range": "27015-27030", "desc": "MIR4 Match Server" },
+      { "proto": "udp", "range": "27015-27030", "desc": "MIR4 Match Server" }
+    ],
+    "server_ips": []
   }
 }

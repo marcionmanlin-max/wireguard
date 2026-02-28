@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../utils/api';
-import { Users, CheckCircle, XCircle, Clock, CreditCard, AlertTriangle, RefreshCw, Ban, Zap, ChevronDown, ChevronUp, UserPlus, Eye, EyeOff, Trash2, Edit3 } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Clock, CreditCard, AlertTriangle, RefreshCw, Ban, Zap, ChevronDown, ChevronUp, UserPlus, Eye, EyeOff, Trash2, Edit3, Package, Plus, Save, X } from 'lucide-react';
 import Modal from './Modal';
 import PhAddressSelector from './PhAddressSelector';
 
@@ -11,6 +11,13 @@ export default function Subscribers() {
   const [detail, setDetail] = useState(null);
   const [actionLoading, setActionLoading] = useState('');
   const [modal, setModal] = useState({ open: false, title: '', message: '', type: 'info', onConfirm: null });
+  const [tab, setTab] = useState('subscribers'); // 'subscribers' | 'plans'
+
+  // Plans state
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [editPlan, setEditPlan] = useState(null); // null = list, object = editing
+  const [planSaving, setPlanSaving] = useState(false);
 
   // Create account state
   const [showCreate, setShowCreate] = useState(false);
@@ -36,7 +43,17 @@ export default function Subscribers() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // Plans CRUD
+  const loadPlans = useCallback(async () => {
+    setPlansLoading(true);
+    try {
+      const res = await api.getPlans(true);
+      setPlans(res.plans || []);
+    } catch (e) {}
+    setPlansLoading(false);
+  }, []);
+
+  useEffect(() => { load(); loadPlans(); }, [load, loadPlans]);
 
   const loadDetail = async (id) => {
     if (expanded === id) { setExpanded(null); setDetail(null); return; }
@@ -145,6 +162,43 @@ export default function Subscribers() {
     }));
   };
 
+  useEffect(() => { if (tab === 'plans') loadPlans(); }, [tab, loadPlans]);
+
+  const newPlan = () => setEditPlan({
+    name: '', slug: '', duration_type: 'month', duration_value: 1,
+    price_php: 0, price_usd: 0, speed_limit_mbps: '',
+    description: '', features: [''], is_trial: false, is_active: true,
+    is_recommended: false, sort_order: plans.length,
+  });
+
+  const savePlan = async () => {
+    if (!editPlan.name) { showError('Plan name is required'); return; }
+    setPlanSaving(true);
+    try {
+      const payload = { ...editPlan, features: editPlan.features?.filter(f => f.trim()) || [] };
+      if (editPlan.id) {
+        await api.updatePlan(editPlan.id, payload);
+        showSuccess('Plan updated');
+      } else {
+        await api.createPlan(payload);
+        showSuccess('Plan created');
+      }
+      setEditPlan(null);
+      loadPlans();
+    } catch (e) { showError(e.message); }
+    setPlanSaving(false);
+  };
+
+  const deletePlan = (plan) => {
+    showConfirm('Delete Plan', `Delete "${plan.name}"? If subscribers use it, it will be deactivated instead.`, async () => {
+      try {
+        const res = await api.deletePlan(plan.id);
+        showSuccess(res.message || 'Done');
+        loadPlans();
+      } catch (e) { showError(e.message); }
+    });
+  };
+
   const statusBadge = (s) => {
     const map = {
       trial: 'bg-blue-400/10 text-blue-400',
@@ -162,13 +216,171 @@ export default function Subscribers() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-white flex items-center gap-2"><Users className="w-5 h-5 text-primary-400" /> Subscribers</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowCreate(!showCreate)} className="px-3 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 flex items-center gap-1.5">
-            <UserPlus className="w-4 h-4" /> Create
-          </button>
-          <button onClick={load} className="p-2 text-dark-400 hover:text-white"><RefreshCw className="w-4 h-4" /></button>
+          {tab === 'subscribers' && (
+            <button onClick={() => setShowCreate(!showCreate)} className="px-3 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 flex items-center gap-1.5">
+              <UserPlus className="w-4 h-4" /> Create
+            </button>
+          )}
+          {tab === 'plans' && (
+            <button onClick={newPlan} className="px-3 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 flex items-center gap-1.5">
+              <Plus className="w-4 h-4" /> New Plan
+            </button>
+          )}
+          <button onClick={tab === 'plans' ? loadPlans : load} className="p-2 text-dark-400 hover:text-white"><RefreshCw className="w-4 h-4" /></button>
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-dark-800 p-1 rounded-lg w-fit">
+        <button onClick={() => setTab('subscribers')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'subscribers' ? 'bg-primary-600 text-white' : 'text-dark-400 hover:text-white'}`}>
+          <Users className="w-4 h-4 inline mr-1.5" />Subscribers
+        </button>
+        <button onClick={() => setTab('plans')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'plans' ? 'bg-primary-600 text-white' : 'text-dark-400 hover:text-white'}`}>
+          <Package className="w-4 h-4 inline mr-1.5" />Plans
+        </button>
+      </div>
+
+      {tab === 'plans' ? (
+        /* ─── Plans Management ─────────────────── */
+        <div className="space-y-4">
+          {editPlan ? (
+            <div className="bg-dark-900 border border-primary-500/30 rounded-xl p-5 space-y-4">
+              <h2 className="text-white font-semibold flex items-center gap-2">
+                <Package className="w-5 h-5 text-primary-400" /> {editPlan.id ? 'Edit Plan' : 'New Plan'}
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-dark-400 text-xs font-medium mb-1 block">Plan Name *</label>
+                  <input value={editPlan.name} onChange={e => setEditPlan(p => ({ ...p, name: e.target.value }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white" placeholder="Monthly" />
+                </div>
+                <div>
+                  <label className="text-dark-400 text-xs font-medium mb-1 block">Slug</label>
+                  <input value={editPlan.slug} onChange={e => setEditPlan(p => ({ ...p, slug: e.target.value }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white" placeholder="auto-generated" />
+                </div>
+                <div>
+                  <label className="text-dark-400 text-xs font-medium mb-1 block">Duration Type</label>
+                  <select value={editPlan.duration_type} onChange={e => setEditPlan(p => ({ ...p, duration_type: e.target.value }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white">
+                    <option value="minutes">Minutes</option>
+                    <option value="day">Day</option>
+                    <option value="week">Week</option>
+                    <option value="month">Month</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-dark-400 text-xs font-medium mb-1 block">Duration Value</label>
+                  <input type="number" min="1" value={editPlan.duration_value} onChange={e => setEditPlan(p => ({ ...p, duration_value: parseInt(e.target.value) || 1 }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="text-dark-400 text-xs font-medium mb-1 block">Price (PHP ₱)</label>
+                  <input type="number" step="0.01" min="0" value={editPlan.price_php} onChange={e => setEditPlan(p => ({ ...p, price_php: parseFloat(e.target.value) || 0 }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="text-dark-400 text-xs font-medium mb-1 block">Price (USD $)</label>
+                  <input type="number" step="0.01" min="0" value={editPlan.price_usd} onChange={e => setEditPlan(p => ({ ...p, price_usd: parseFloat(e.target.value) || 0 }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="text-dark-400 text-xs font-medium mb-1 block">Speed Limit (Mbps)</label>
+                  <input type="number" min="0" value={editPlan.speed_limit_mbps} onChange={e => setEditPlan(p => ({ ...p, speed_limit_mbps: e.target.value }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white" placeholder="Blank = unlimited" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-dark-400 text-xs font-medium mb-1 block">Description</label>
+                  <input value={editPlan.description} onChange={e => setEditPlan(p => ({ ...p, description: e.target.value }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white" placeholder="Plan description" />
+                </div>
+              </div>
+              <div>
+                <label className="text-dark-400 text-xs font-medium mb-1 block">Features (one per line)</label>
+                <div className="space-y-1">
+                  {(editPlan.features || ['']).map((f, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input value={f} onChange={e => { const ff = [...(editPlan.features || [])]; ff[i] = e.target.value; setEditPlan(p => ({ ...p, features: ff })); }} className="flex-1 bg-dark-800 border border-dark-600 rounded-lg px-3 py-1.5 text-xs text-white" placeholder="Feature text" />
+                      <button onClick={() => { const ff = (editPlan.features || []).filter((_, j) => j !== i); setEditPlan(p => ({ ...p, features: ff.length ? ff : [''] })); }} className="text-red-400 hover:text-red-300 p-1"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                  <button onClick={() => setEditPlan(p => ({ ...p, features: [...(p.features || []), ''] }))} className="text-xs text-primary-400 hover:text-primary-300 mt-1">+ Add feature</button>
+                </div>
+              </div>
+              <div className="flex gap-4 items-center flex-wrap">
+                <label className="flex items-center gap-2 text-xs text-dark-400">
+                  <input type="checkbox" checked={editPlan.is_trial} onChange={e => setEditPlan(p => ({ ...p, is_trial: e.target.checked }))} className="accent-primary-400" /> Trial plan
+                </label>
+                <label className="flex items-center gap-2 text-xs text-dark-400">
+                  <input type="checkbox" checked={editPlan.is_active} onChange={e => setEditPlan(p => ({ ...p, is_active: e.target.checked }))} className="accent-primary-400" /> Active
+                </label>
+                <label className="flex items-center gap-2 text-xs text-dark-400">
+                  <input type="checkbox" checked={editPlan.is_recommended} onChange={e => setEditPlan(p => ({ ...p, is_recommended: e.target.checked }))} className="accent-primary-400" /> Recommended
+                </label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-dark-400">Sort:</label>
+                  <input type="number" min="0" value={editPlan.sort_order} onChange={e => setEditPlan(p => ({ ...p, sort_order: parseInt(e.target.value) || 0 }))} className="w-16 bg-dark-800 border border-dark-600 rounded-lg px-2 py-1 text-xs text-white text-center" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={savePlan} disabled={planSaving} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 disabled:opacity-50 flex items-center gap-1.5">
+                  {planSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
+                </button>
+                <button onClick={() => setEditPlan(null)} className="px-4 py-2 bg-dark-700 text-dark-300 rounded-lg text-sm hover:bg-dark-600">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-dark-900 border border-dark-700 rounded-xl overflow-hidden">
+              {plansLoading ? (
+                <div className="flex items-center justify-center py-12"><RefreshCw className="w-5 h-5 text-primary-400 animate-spin" /></div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-dark-700 text-dark-400 text-xs">
+                        <th className="text-left p-3">#</th>
+                        <th className="text-left p-3">Name</th>
+                        <th className="text-left p-3">Duration</th>
+                        <th className="text-right p-3">₱ PHP</th>
+                        <th className="text-right p-3 hidden sm:table-cell">$ USD</th>
+                        <th className="text-left p-3 hidden sm:table-cell">Speed</th>
+                        <th className="text-center p-3">Status</th>
+                        <th className="text-center p-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plans.map(p => (
+                        <tr key={p.id} className="border-b border-dark-800 hover:bg-dark-800/50">
+                          <td className="p-3 text-dark-500">{p.sort_order}</td>
+                          <td className="p-3 text-white font-medium">
+                            {p.name}
+                            {p.is_trial && <span className="ml-2 px-1.5 py-0.5 bg-blue-400/10 text-blue-400 rounded text-[10px]">TRIAL</span>}
+                            {p.is_recommended && <span className="ml-2 px-1.5 py-0.5 bg-green-400/10 text-green-400 rounded text-[10px]">★</span>}
+                          </td>
+                          <td className="p-3 text-dark-300">{p.duration_value} {p.duration_type}{p.duration_value > 1 ? 's' : ''}</td>
+                          <td className="p-3 text-right text-white font-mono">₱{Number(p.price_php).toFixed(2)}</td>
+                          <td className="p-3 text-right text-dark-400 font-mono hidden sm:table-cell">${Number(p.price_usd).toFixed(2)}</td>
+                          <td className="p-3 text-dark-400 hidden sm:table-cell">{p.speed_limit_mbps ? `${p.speed_limit_mbps} Mbps` : '∞'}</td>
+                          <td className="p-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${p.is_active ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>{p.is_active ? 'ACTIVE' : 'OFF'}</span>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => setEditPlan({ ...p, features: p.features || [''] })} className="p-1.5 text-dark-400 hover:text-primary-400"><Edit3 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => deletePlan(p)} className="p-1.5 text-dark-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {plans.length === 0 && !plansLoading && (
+                <div className="p-8 text-center text-dark-500">
+                  <Package className="w-8 h-8 mx-auto mb-2 text-dark-600" />
+                  <p>No plans configured</p>
+                  <button onClick={newPlan} className="text-primary-400 text-sm mt-2 hover:text-primary-300">Create your first plan</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+      /* ─── Subscribers Tab ─────────────────── */
+      <>
       {/* Create Account Form */}
       {showCreate && (
         <div className="bg-dark-900 border border-primary-500/30 rounded-xl p-5">
@@ -201,8 +413,13 @@ export default function Subscribers() {
               <div>
                 <label className="text-dark-400 text-xs font-medium mb-1 block">Plan</label>
                 <select value={createForm.plan} onChange={e => setCreateForm(f => ({ ...f, plan: e.target.value }))} className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500">
-                  <option value="client">Client ($5/mo)</option>
-                  <option value="selfhost">Self-Host ($50/mo)</option>
+                  {plans.filter(p => !p.is_trial && p.is_active).map(p => (
+                    <option key={p.slug} value={p.slug}>{p.name} (₱{Number(p.price_php).toFixed(2)})</option>
+                  ))}
+                  {plans.length === 0 && <>
+                    <option value="monthly">Monthly (₱100)</option>
+                    <option value="selfhost">Self-Host (₱500)</option>
+                  </>}
                 </select>
               </div>
               <div>
@@ -402,6 +619,8 @@ export default function Subscribers() {
           </div>
         )}
       </div>
+      </>
+      )}
 
       <Modal open={modal.open} onClose={closeModal} onConfirm={modal.onConfirm} title={modal.title} message={modal.message} type={modal.type} confirmText={modal.onConfirm ? 'Confirm' : undefined} />
     </div>

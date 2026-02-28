@@ -160,20 +160,20 @@ def detect_new_games():
 
 
 def load_rules_from_db():
-    """Load enabled port blocking rules from database.
-    Returns: dict of { client_ip: set(game_key) }
+    """Load port blocking rules from database.
+    Returns: dict of { client_ip: { game_key: bool } }, global_blocks dict, all_client_ips set
     """
     db = mysql.connector.connect(**DB_CONFIG)
     cursor = db.cursor(dictionary=True)
 
-    # Get per-client rules
-    cursor.execute("SELECT client_ip, game_key FROM port_blocking_rules WHERE enabled = 1")
+    # Get ALL per-client rules (both enabled and disabled for overrides)
+    cursor.execute("SELECT client_ip, game_key, enabled FROM port_blocking_rules")
     rules = {}
     for row in cursor.fetchall():
         ip = row['client_ip'].split('/')[0]  # strip CIDR
         if ip not in rules:
-            rules[ip] = set()
-        rules[ip].add(row['game_key'])
+            rules[ip] = {}
+        rules[ip][row['game_key']] = bool(row['enabled'])
 
     # Get global defaults
     cursor.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'port_block_%'")
@@ -182,8 +182,18 @@ def load_rules_from_db():
         game_key = row['setting_key'].replace('port_block_', '')
         global_blocks[game_key] = row['setting_value'] == '1'
 
+    # Get all known client IPs (WG peers + LAN clients)
+    all_ips = set()
+    cursor.execute("SELECT allowed_ips FROM wg_peers")
+    for row in cursor.fetchall():
+        ip = row['allowed_ips'].split('/')[0]
+        all_ips.add(ip)
+    cursor.execute("SELECT ip_address FROM lan_clients")
+    for row in cursor.fetchall():
+        all_ips.add(row['ip_address'])
+
     db.close()
-    return rules, global_blocks
+    return rules, global_blocks, all_ips
 
 
 def ensure_chain():
@@ -211,42 +221,100 @@ def get_current_rules():
     return result.stdout if result.returncode == 0 else ''
 
 
-def build_rules(per_client_rules, global_blocks, game_ports):
+def _parse_range(range_str):
+    """Parse port range string like '5000-5221' into (start, end) tuple."""
+    if '-' in range_str:
+        parts = range_str.split('-')
+        return (int(parts[0]), int(parts[1]))
+    return (int(range_str), int(range_str))
+
+
+def _ranges_overlap(r1, r2):
+    """Check if two port ranges (start, end) overlap."""
+    return r1[0] <= r2[1] and r2[0] <= r1[1]
+
+
+def build_rules(per_client_rules, global_blocks, game_ports, all_client_ips):
     """Build list of iptables rule args from DB rules.
+    Applies global defaults + per-client overrides.
+    Priority: per-client override > global setting > game default_blocked
+    Handles port conflicts: a port is only blocked if ALL games using overlapping ports are blocked.
     Returns list of iptables arg lists.
     """
-    rules = []
+    # Step 1: Determine which games are blocked per client
+    client_game_blocked = {}  # { client_ip: { game_key: bool } }
+    for client_ip in all_client_ips:
+        client_game_blocked[client_ip] = {}
+        for game_key, game_def in game_ports.items():
+            global_blocked = global_blocks.get(game_key, game_def.get('default_blocked', False))
+            client_rules = per_client_rules.get(client_ip, {})
+            if game_key in client_rules:
+                client_game_blocked[client_ip][game_key] = client_rules[game_key]
+            else:
+                client_game_blocked[client_ip][game_key] = global_blocked
 
-    # Collect all IPs that need blocking for each game
-    game_clients = {}  # game_key -> set of IPs
-    for client_ip, games in per_client_rules.items():
-        for game in games:
-            if game not in game_clients:
-                game_clients[game] = set()
-            game_clients[game].add(client_ip)
-
+    # Step 2: Build port-to-games mapping to find conflicts
+    port_games = {}  # { (proto, range_str): [game_key, ...] }
     for game_key, game_def in game_ports.items():
-        blocked_ips = game_clients.get(game_key, set())
-        if not blocked_ips:
+        for port_def in game_def.get('ports', []):
+            pg_key = (port_def['proto'], port_def['range'])
+            if pg_key not in port_games:
+                port_games[pg_key] = []
+            port_games[pg_key].append(game_key)
+
+    # Find overlapping port groups per client
+    # Build a map of which games share overlapping ports (by proto)
+    port_entries = list(port_games.keys())  # [(proto, range_str), ...]
+
+    rules = []
+    seen_port_rules = set()  # avoid duplicate port rules per client
+
+    for client_ip in sorted(all_client_ips):
+        blocked_games = {g for g, b in client_game_blocked.get(client_ip, {}).items() if b}
+        if not blocked_games:
             continue
 
-        for client_ip in sorted(blocked_ips):
-            # Port-based rules
-            for port_def in game_def.get('ports', []):
-                proto = port_def['proto']
-                port_range = port_def['range'].replace('-', ':')  # iptables uses : for ranges
-                comment = f"ionman:{game_key}:{client_ip}"
+        # Port-based rules: only block a port if ALL games using overlapping ranges are blocked
+        for (proto, range_str), owning_games in port_games.items():
+            # Check if ALL games that overlap with this port range are blocked
+            all_blocked = True
+            for pg_key2, games2 in port_games.items():
+                if pg_key2[0] != proto:
+                    continue
+                r1 = _parse_range(range_str)
+                r2 = _parse_range(pg_key2[1])
+                if _ranges_overlap(r1, r2):
+                    # These port ranges overlap — check if ALL games using pg_key2 are blocked
+                    for g in games2:
+                        if g not in blocked_games:
+                            all_blocked = False
+                            break
+                if not all_blocked:
+                    break
 
-                rules.append([
-                    '-A', CHAIN_NAME,
-                    '-s', client_ip,
-                    '-p', proto,
-                    '--dport', port_range,
-                    '-j', 'DROP',
-                    '-m', 'comment', '--comment', comment
-                ])
+            if not all_blocked:
+                continue
 
-            # IP-based rules (server IPs)
+            rule_id = (client_ip, proto, range_str)
+            if rule_id in seen_port_rules:
+                continue
+            seen_port_rules.add(rule_id)
+
+            port_range_ipt = range_str.replace('-', ':')
+            # Use the first owning game for the comment
+            comment = f"ionman:{owning_games[0]}:{client_ip}"
+            rules.append([
+                '-A', CHAIN_NAME,
+                '-s', client_ip,
+                '-p', proto,
+                '--dport', port_range_ipt,
+                '-j', 'DROP',
+                '-m', 'comment', '--comment', comment
+            ])
+
+        # IP-based rules (server IPs) — these are game-specific, no conflict
+        for game_key in sorted(blocked_games):
+            game_def = game_ports.get(game_key, {})
             for ip_range in game_def.get('server_ips', []):
                 comment = f"ionman:{game_key}:{client_ip}:ip"
                 rules.append([
@@ -263,26 +331,32 @@ def build_rules(per_client_rules, global_blocks, game_ports):
 def sync_rules():
     """Full sync: flush and rebuild all iptables rules from DB."""
     game_ports = load_game_ports()
-    per_client, global_blocks = load_rules_from_db()
+    per_client, global_blocks, all_ips = load_rules_from_db()
 
     ensure_chain()
     flush_chain()
 
-    rules = build_rules(per_client, global_blocks, game_ports)
+    rules = build_rules(per_client, global_blocks, game_ports, all_ips)
 
     for rule_args in rules:
         run_ipt(rule_args)
 
     # Count unique clients and games
-    clients = set()
-    games = set()
-    for client_ip, client_games in per_client.items():
-        if client_games:
-            clients.add(client_ip)
-            games.update(client_games)
+    blocked_clients = set()
+    blocked_games = set()
+    for rule_args in rules:
+        # Parse comment to get game and client info
+        if '--comment' in rule_args:
+            idx = rule_args.index('--comment')
+            comment = rule_args[idx + 1] if idx + 1 < len(rule_args) else ''
+            parts = comment.split(':')
+            if len(parts) >= 3:
+                blocked_games.add(parts[1])
+                blocked_clients.add(parts[2])
 
     print(f"[PortManager] Synced {len(rules)} iptables rules for "
-          f"{len(clients)} clients, {len(games)} games")
+          f"{len(blocked_clients)} clients, {len(blocked_games)} games "
+          f"(total known IPs: {len(all_ips)})")
     return len(rules)
 
 

@@ -134,6 +134,15 @@ export const api = {
   addLanClient: (data) => apiFetch('port-blocking/clients', { method: 'POST', body: JSON.stringify(data) }),
   deleteLanClient: (id) => apiFetch(`port-blocking/clients/${id}`, { method: 'DELETE' }),
   detectNewGames: () => apiFetch('port-blocking/detect'),
+  addCustomGame: (data) => apiFetch('port-blocking/custom-game', { method: 'POST', body: JSON.stringify(data) }),
+  deleteCustomGame: (key) => apiFetch(`port-blocking/custom-game/${key}`, { method: 'DELETE' }),
+
+  // Subscription Plans CRUD
+  getPlans: (all = false) => apiFetch(`plans${all ? '?all=1' : ''}`),
+  getPlan: (id) => apiFetch(`plans/${id}`),
+  createPlan: (data) => apiFetch('plans', { method: 'POST', body: JSON.stringify(data) }),
+  updatePlan: (id, data) => apiFetch(`plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePlan: (id) => apiFetch(`plans/${id}`, { method: 'DELETE' }),
 
   // IonMan Resolver
   getResolverStatus: () => apiFetch('resolver?action=status'),

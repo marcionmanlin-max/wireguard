@@ -12,23 +12,24 @@ import {
 } from 'recharts'
 import { formatBytes } from '../utils/helpers'
 
-const VERSION = '2.1.0'
-const BUILD_DATE = '2025-07-17'
+const VERSION = '2.2.0'
+const BUILD_DATE = '2026-02-28'
 
 // ── Animated count-up ──────────────────────────────────
 function useCountUp(target, duration = 1200, delay = 0) {
   const [val, setVal] = useState(0)
-  const started = useRef(false)
+  const prevTarget = useRef(0)
   useEffect(() => {
-    if (target == null || started.current) return
+    if (target == null || target === prevTarget.current) return
+    const from = prevTarget.current || 0
+    prevTarget.current = target
     const timer = setTimeout(() => {
-      started.current = true
       const steps = 40
       const stepMs = duration / steps
       let s = 0
       const id = setInterval(() => {
         s++
-        setVal(Math.round((target * s) / steps))
+        setVal(Math.round(from + ((target - from) * s) / steps))
         if (s >= steps) { clearInterval(id); setVal(target) }
       }, stepMs)
     }, delay)
@@ -200,20 +201,14 @@ export default function About() {
     Promise.all([
       api.getSystem().catch(() => null),
       api.getStats().catch(() => null),
-      fetch('/dns/api/resolver?action=status', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('ionman_token')}` },
-        credentials: 'include',
-      }).then(r => r.json()).catch(() => null),
+      api.getResolverStatus().catch(() => null),
     ]).then(([sys, st, res]) => { setSystem(sys); setStats(st); setResolverStatus(res) })
   }, [])
 
   // Poll resolver stats for sparkline
   useEffect(() => {
     const poll = () => {
-      fetch('/dns/api/resolver?action=status', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('ionman_token')}` },
-        credentials: 'include',
-      }).then(r => r.json()).then(d => {
+      api.getResolverStatus().then(d => {
         if (d?.running) {
           const now = new Date().toLocaleTimeString('en-US', { hour12: false })
           setHistory(prev => [...prev.slice(-19), { t: now, total: d.total_queries || 0, cached: d.cached_queries || 0 }])

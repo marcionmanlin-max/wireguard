@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Zap, Shield, Wifi, Gamepad2, CheckCircle, XCircle, Radio } from 'lucide-react'
 
-const VERSION = '2.1.0'
+const VERSION = '2.2.0'
 const DEVELOPER = 'Ionman Dev'
 
 const BLOCKED_DOMAINS = [

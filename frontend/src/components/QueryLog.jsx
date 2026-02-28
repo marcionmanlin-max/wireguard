@@ -1,4 +1,33 @@
 import { useState, useEffect } from 'react'
+// ─── BlockToggle Component ──────────────────────────────
+function BlockToggle({ domain, blocked }) {
+  const [isBlocked, setIsBlocked] = useState(blocked)
+  const [loading, setLoading] = useState(false)
+
+  const toggleBlock = async () => {
+    setLoading(true)
+    try {
+      const action = isBlocked ? 'unblock' : 'block'
+      await api.addDomain(action === 'block' ? 'blacklist' : 'whitelist', { domain })
+      setIsBlocked(!isBlocked)
+    } catch (e) {
+      alert('Failed to toggle block')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      className={`ml-2 px-2 py-1 rounded text-xs font-bold ${isBlocked ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
+      onClick={toggleBlock}
+      disabled={loading}
+      title={isBlocked ? 'Unblock domain' : 'Block domain'}
+    >
+      {loading ? '...' : isBlocked ? 'Unblock' : 'Block'}
+    </button>
+  )
+}
 import { api } from '../utils/api'
 import { formatNumber } from '../utils/helpers'
 import { 
@@ -121,7 +150,7 @@ export default function QueryLog() {
 
       {/* Top Stats */}
       {topStats && showTopStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Top Queried Domains */}
           <div className="bg-dark-900 border border-dark-700 rounded-xl p-4">
             <h4 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
@@ -132,6 +161,7 @@ export default function QueryLog() {
                 <div key={i} className="flex items-center justify-between py-1 px-2 rounded bg-dark-800/30 text-xs">
                   <span className="text-dark-200 font-mono truncate flex-1 mr-2">{item.domain}</span>
                   <span className="text-primary-400 font-mono flex-shrink-0">{formatNumber(parseInt(item.count))}</span>
+                  <BlockToggle domain={item.domain} blocked={false} />
                 </div>
               ))}
             </div>
@@ -147,6 +177,7 @@ export default function QueryLog() {
                 <div key={i} className="flex items-center justify-between py-1 px-2 rounded bg-danger-400/5 text-xs">
                   <span className="text-dark-200 font-mono truncate flex-1 mr-2">{item.domain}</span>
                   <span className="text-danger-400 font-mono flex-shrink-0">{formatNumber(parseInt(item.count))}</span>
+                  <BlockToggle domain={item.domain} blocked={true} />
                 </div>
               ))}
             </div>
@@ -166,6 +197,7 @@ export default function QueryLog() {
                     <span className="text-primary-400 font-mono">{formatNumber(parseInt(item.total))}</span>
                     <span className="text-danger-400 font-mono text-[10px]">{formatNumber(parseInt(item.blocked))} blk</span>
                   </div>
+                  {/* BlockToggle for client (if needed, e.g. block all queries from client) */}
                 </div>
               ))}
             </div>
@@ -269,23 +301,7 @@ export default function QueryLog() {
                       </td>
                       <td className="p-3 text-right hidden sm:table-cell">
                         <div className="flex items-center justify-end gap-1">
-                          {log.action === 'blocked' ? (
-                            <button
-                              onClick={() => addToWhitelist(log.domain)}
-                              className="px-2 py-1 text-xs text-primary-400 hover:bg-primary-500/10 rounded"
-                              title="Add to whitelist"
-                            >
-                              Allow
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => addToBlacklist(log.domain)}
-                              className="px-2 py-1 text-xs text-danger-400 hover:bg-danger-500/10 rounded"
-                              title="Add to blacklist"
-                            >
-                              Block
-                            </button>
-                          )}
+                          <BlockToggle domain={log.domain} blocked={log.action === 'blocked'} />
                         </div>
                       </td>
                     </tr>

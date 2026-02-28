@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Prevent horizontal overflow globally ─────────── */
+html, body, #root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ─── Tables: always allow horizontal scroll ────────── */
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
 /* ─── Theme CSS Variables ───────────────────────────
    dark-* palette is driven by CSS custom properties.
    The scale goes: 950 = deepest bg → 50 = lightest/darkest text.

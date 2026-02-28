@@ -10,7 +10,8 @@ import {
   MessageCircle, Tv, Gamepad2, Dice1, Film, Heart,
   ChevronRight, ArrowLeft, Search, Loader2, Send,
   Check, Copy, Download, RotateCcw, CheckCircle,
-  Swords, Target, Flame, Sparkles, Crosshair, Box
+  Swords, Target, Flame, Sparkles, Crosshair, Box,
+  Lock, Unlock, Network
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, 
@@ -56,6 +57,8 @@ export default function Dashboard() {
   const [logFilter, setLogFilter] = useState('all')
   const [qrModal, setQrModal] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [togglingGame, setTogglingGame] = useState(null)
+  const [togglingDomain, setTogglingDomain] = useState(null)
 
   const CATEGORY_ICONS = {
     social: MessageCircle, streaming: Tv, gaming: Gamepad2,
@@ -82,6 +85,32 @@ export default function Dashboard() {
     if (type === 'wireguard') return <Globe className={`${className} text-primary-400`} title="WireGuard VPN" />
     if (type === 'server') return <Server className={`${className} text-amber-400`} title="Server" />
     return <Monitor className={`${className} text-green-400`} title="LAN" />
+  }
+
+  // Toggle game block/allow from dashboard
+  const toggleGameBlock = async (gameKey, currentlyBlocked) => {
+    setTogglingGame(gameKey)
+    try {
+      await api.setGlobalPortBlocks({ [gameKey]: !currentlyBlocked })
+      await fetchStats(true)
+    } catch (e) { console.error('Toggle game error:', e) }
+    finally { setTogglingGame(null) }
+  }
+
+  // Toggle domain whitelist/blacklist from dashboard
+  const toggleDomainBlock = async (domain, currentAction) => {
+    setTogglingDomain(domain)
+    try {
+      if (currentAction === 'blocked') {
+        // Add to whitelist
+        await api.addDomain('whitelist', { domain, comment: 'Allowed from dashboard' })
+      } else {
+        // Add to blacklist
+        await api.addDomain('blacklist', { domain, comment: 'Blocked from dashboard' })
+      }
+      await fetchStats(true)
+    } catch (e) { console.error('Toggle domain error:', e) }
+    finally { setTogglingDomain(null) }
   }
 
   const fetchStats = useCallback(async (silent = false) => {
@@ -432,7 +461,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stat Cards - Clickable */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon, color, bg, glow, sub, modalType }) => (
           <div key={label} onClick={() => openModal(modalType)} className={`${bg} ${glow} border rounded-xl p-5 cursor-pointer hover:scale-[1.02] transition-all group`}>
             <div className="flex items-center justify-between">
@@ -450,7 +479,7 @@ export default function Dashboard() {
 
       {/* Ad Blocking Stats */}
       {stats.ad_stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {[
             { key: 'youtube_ads', icon: Youtube, color: 'red', value: stats.ad_stats.youtube_ads_blocked, label: 'YouTube Ads Blocked' },
             { key: 'facebook_ads', icon: Facebook, color: 'blue', value: stats.ad_stats.facebook_ads_blocked, label: 'Facebook Ads Blocked' },
@@ -472,7 +501,7 @@ export default function Dashboard() {
 
       {/* System Stats */}
       {system && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <SystemGauge label="CPU" value={system.cpu_percent} icon={Cpu} color="#00d4ff" sub={`Load: ${system.load_1}`} />
           <SystemGauge label="Memory" value={system.mem_percent} icon={Server} color={system.mem_percent > 80 ? '#ff073a' : '#00d4ff'} sub={`${formatBytes(system.mem_used)} / ${formatBytes(system.mem_total)}`} />
           <SystemGauge label="Disk" value={system.disk_percent} icon={HardDrive} color={system.disk_percent > 80 ? '#ff073a' : '#00d4ff'} sub={`${formatBytes(system.disk_used)} / ${formatBytes(system.disk_total)}`} />
@@ -500,12 +529,12 @@ export default function Dashboard() {
         {onlinePeers.length === 0 ? (
           <p className="text-dark-500 text-sm text-center py-4">No VPN clients currently online</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:overflow-x-visible lg:pb-0">
             {onlinePeers.map((peer) => {
               const isExpanded = expandedPeer === peer.id
               const connTime = getConnectionTime(peer)
               return (
-                <div key={peer.id} onClick={() => setExpandedPeer(isExpanded ? null : peer.id)} className="relative rounded-xl p-4 border transition-all cursor-pointer bg-primary-400/5 border-primary-400/20 shadow-[0_0_10px_rgba(0,212,255,0.05)] hover:border-primary-400/40">
+                <div key={peer.id} onClick={() => setExpandedPeer(isExpanded ? null : peer.id)} className="relative rounded-xl p-4 border transition-all cursor-pointer bg-primary-400/5 border-primary-400/20 shadow-[0_0_10px_rgba(0,212,255,0.05)] hover:border-primary-400/40 min-w-[280px] snap-center flex-shrink-0 lg:min-w-0 lg:flex-shrink">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary-400/15">
                       <Smartphone className="w-4 h-4 text-primary-400" />
@@ -564,9 +593,10 @@ export default function Dashboard() {
             <Activity className="w-4 h-4 text-primary-400" /> Queries (Last 24 Hours)
             <span className="ml-auto flex items-center gap-1 text-dark-500 text-xs"><Radio className="w-3 h-3 text-primary-400 animate-pulse" /> Live</span>
           </h3>
-          <div className="h-96 overflow-x-auto max-w-full min-w-[800px]">
+          <div className="overflow-x-auto max-w-full">
+            <div className="min-w-[800px]" style={{ height: '420px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.hourly_data}>
+              <AreaChart data={stats.hourly_data} margin={{ top: 25, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorAllowed" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.3}/>
@@ -579,12 +609,13 @@ export default function Dashboard() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
                 <XAxis dataKey="hour" stroke="#444444" tick={{ fontSize: 11 }} tickFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: '2-digit' })} />
-                <YAxis stroke="#444444" tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
+                <YAxis stroke="#444444" tick={{ fontSize: 11 }} domain={[0, dataMax => Math.ceil(dataMax * 1.15)]} allowDataOverflow={false} />
                 <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #222222', borderRadius: '8px', color: '#cccccc' }} labelFormatter={(v) => new Date(v).toLocaleString()} />
                 <Area type="monotone" dataKey="allowed" stroke="#00d4ff" fillOpacity={1} fill="url(#colorAllowed)" name="Allowed" />
                 <Area type="monotone" dataKey="blocked" stroke="#ff073a" fillOpacity={1} fill="url(#colorBlocked)" name="Blocked" />
               </AreaChart>
             </ResponsiveContainer>
+            </div>
           </div>
         </div>
 
@@ -647,11 +678,19 @@ export default function Dashboard() {
               const maxCount = Math.max(...stats.top_blocked.map(x => parseInt(x.count)))
               const pct = (parseInt(item.count) / maxCount) * 100
               return (
-                <div key={i} className="relative py-2 px-3 rounded-lg bg-dark-800/50 overflow-hidden">
+                <div key={i} className="relative py-2 px-3 rounded-lg bg-dark-800/50 overflow-hidden group">
                   <div className="absolute inset-y-0 left-0 bg-danger-400/10 rounded-lg" style={{ width: `${pct}%` }}></div>
-                  <div className="relative flex items-center justify-between">
+                  <div className="relative flex items-center justify-between gap-2">
                     <span className="text-sm text-dark-200 truncate flex-1 font-mono text-xs">{item.domain}</span>
-                    <span className="text-xs font-mono text-danger-400 ml-2">{formatNumber(parseInt(item.count))}</span>
+                    <span className="text-xs font-mono text-danger-400">{formatNumber(parseInt(item.count))}</span>
+                    <button
+                      onClick={() => toggleDomainBlock(item.domain, 'blocked')}
+                      disabled={togglingDomain === item.domain}
+                      className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 transition-all"
+                      title="Allow this domain"
+                    >
+                      {togglingDomain === item.domain ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <><Unlock className="w-2.5 h-2.5" /> Allow</>}
+                    </button>
                   </div>
                 </div>
               )
@@ -691,39 +730,93 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top Games Blocked */}
-      {stats.top_games && stats.top_games.length > 0 && (
-        <div className="bg-dark-900 border border-dark-700 rounded-xl p-5">
-          <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-            <Gamepad2 className="w-4 h-4 text-purple-400" /> Top Games Blocked
-            <span className="ml-1 text-xs text-dark-500 font-normal">last 24h</span>
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {(() => {
-              const maxHits = Math.max(...stats.top_games.map(g => g.hits))
-              return stats.top_games.map((game, i) => {
-                const GameIcon = GAME_ICONS[game.icon] || Gamepad2
-                const pct = (game.hits / maxHits) * 100
-                return (
-                  <div key={game.key} className="relative bg-dark-800/50 rounded-lg px-4 py-3 overflow-hidden">
-                    <div className="absolute inset-y-0 left-0 rounded-lg opacity-20" style={{ width: `${pct}%`, backgroundColor: game.color }} />
-                    <div className="relative flex items-center gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: game.color + '22', border: `1px solid ${game.color}44` }}>
-                        <GameIcon className="w-4 h-4" style={{ color: game.color }} />
+      {/* Top Games & Top Ports Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Games */}
+        {stats.top_games && stats.top_games.length > 0 && (
+          <div className="bg-dark-900 border border-dark-700 rounded-xl p-5">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+              <Gamepad2 className="w-4 h-4 text-purple-400" /> Top Games
+              <span className="ml-1 text-xs text-dark-500 font-normal">last 24h</span>
+            </h3>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {(() => {
+                const maxHits = Math.max(...stats.top_games.map(g => g.hits))
+                return stats.top_games.map((game, i) => {
+                  const GameIcon = GAME_ICONS[game.icon] || Gamepad2
+                  const pct = (game.hits / maxHits) * 100
+                  const isBlocked = game.blocked
+                  return (
+                    <div key={game.key} className="relative bg-dark-800/50 rounded-lg px-4 py-3 overflow-hidden group">
+                      <div className="absolute inset-y-0 left-0 rounded-lg opacity-20" style={{ width: `${pct}%`, backgroundColor: game.color }} />
+                      <div className="relative flex items-center gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: game.color + '22', border: `1px solid ${game.color}44` }}>
+                          <GameIcon className="w-4 h-4" style={{ color: game.color }} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-dark-200 text-sm font-medium truncate">{game.label}</p>
+                          <p className="text-xs" style={{ color: game.color }}>{formatNumber(game.hits)} hits</p>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleGameBlock(game.key, isBlocked) }}
+                          disabled={togglingGame === game.key}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                            isBlocked
+                              ? 'bg-danger-400/15 text-danger-400 border border-danger-400/30 hover:bg-danger-400/25'
+                              : 'bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25'
+                          }`}
+                        >
+                          {togglingGame === game.key ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                            isBlocked ? <><Lock className="w-3 h-3" /> Blocked</> : <><Unlock className="w-3 h-3" /> Allowed</>}
+                        </button>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-dark-200 text-sm font-medium truncate">{game.label}</p>
-                        <p className="text-xs" style={{ color: game.color }}>{formatNumber(game.hits)} hits</p>
-                      </div>
-                      <span className="text-xs font-mono text-dark-500 flex-shrink-0">#{i + 1}</span>
                     </div>
-                  </div>
-                )
-              })
-            })()}
+                  )
+                })
+              })()}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Top Ports */}
+        {stats.top_ports && stats.top_ports.length > 0 && (
+          <div className="bg-dark-900 border border-dark-700 rounded-xl p-5">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+              <Network className="w-4 h-4 text-amber-400" /> Top Ports
+              <span className="ml-1 text-xs text-dark-500 font-normal">by game hits</span>
+            </h3>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {(() => {
+                const maxHits = Math.max(...stats.top_ports.map(p => p.hits))
+                return stats.top_ports.map((port, i) => {
+                  const GameIcon = GAME_ICONS[port.game_icon] || Gamepad2
+                  const pct = maxHits > 0 ? (port.hits / maxHits) * 100 : 0
+                  return (
+                    <div key={`${port.proto}-${port.range}-${i}`} className="relative bg-dark-800/50 rounded-lg px-4 py-2.5 overflow-hidden">
+                      <div className="absolute inset-y-0 left-0 rounded-lg opacity-10" style={{ width: `${pct}%`, backgroundColor: port.game_color }} />
+                      <div className="relative flex items-center gap-3">
+                        <div className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: port.game_color + '22' }}>
+                          <GameIcon className="w-3.5 h-3.5" style={{ color: port.game_color }} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-dark-200 text-xs font-mono">
+                            <span className="uppercase text-dark-400">{port.proto}</span> {port.range}
+                          </p>
+                          <p className="text-[10px] text-dark-500 truncate">{port.desc} · {port.game_label}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-mono" style={{ color: port.game_color }}>{formatNumber(port.hits)}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${port.blocked ? 'bg-danger-400' : 'bg-green-400'}`} title={port.blocked ? 'Blocked' : 'Allowed'} />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Modal */}
       {modal && (

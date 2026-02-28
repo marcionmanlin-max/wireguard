@@ -25,6 +25,8 @@ $game_ports = json_decode(file_get_contents($game_ports_file), true) ?: [];
 // Helper: trigger port manager sync
 function trigger_port_sync() {
     shell_exec("sudo python3 " . IONMAN_ENGINE_DIR . "/port_manager.py sync 2>&1 &");
+    // Also reload DNS proxy so game-specific DNS overrides take effect
+    shell_exec("sudo pkill -HUP -f dns_proxy.py 2>/dev/null");
 }
 
 // Helper: trigger auto-detect
@@ -325,6 +327,67 @@ switch ($method) {
 
             json_response(['message' => 'LAN client saved', 'id' => $client_id], 201);
         }
+
+        // POST /port-blocking/custom-game — add a custom game/port entry
+        if ($id === 'custom-game') {
+            $data = get_json_body();
+            $label = trim($data['label'] ?? '');
+            $ports = $data['ports'] ?? [];
+            $domains = $data['domains'] ?? [];
+            $default_blocked = $data['default_blocked'] ?? true;
+
+            if (!$label) json_error('Game label required');
+            if (empty($ports) && empty($domains)) json_error('At least one port or domain is required');
+
+            // Generate key from label
+            $key = strtolower(preg_replace('/[^a-z0-9]+/i', '_', $label));
+            $key = trim($key, '_');
+
+            // Check for duplicate
+            $game_ports_file = dirname(__DIR__) . '/config/game_ports.json';
+            $game_ports = json_decode(file_get_contents($game_ports_file), true) ?: [];
+            if (isset($game_ports[$key])) json_error('A game with this key already exists');
+
+            // Build port entries
+            $port_entries = [];
+            foreach ($ports as $p) {
+                $proto = $p['proto'] ?? 'tcp';
+                $range = $p['range'] ?? '';
+                $desc = $p['desc'] ?? '';
+                if ($range) {
+                    $port_entries[] = ['proto' => $proto, 'range' => $range, 'desc' => $desc];
+                }
+            }
+
+            // Clean domains
+            $clean_domains = [];
+            foreach ($domains as $d) {
+                $d = trim(strtolower($d));
+                if ($d && preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/', $d)) {
+                    $clean_domains[] = $d;
+                }
+            }
+
+            $game_ports[$key] = [
+                'label' => $label,
+                'icon' => $data['icon'] ?? 'Gamepad2',
+                'color' => $data['color'] ?? '#6B7280',
+                'description' => $data['description'] ?? "Custom: $label",
+                'default_blocked' => $default_blocked,
+                'domains' => $clean_domains,
+                'ports' => $port_entries,
+                'server_ips' => [],
+                'custom' => true,
+            ];
+
+            file_put_contents($game_ports_file, json_encode($game_ports, JSON_PRETTY_PRINT));
+
+            // Set global setting
+            set_setting("port_block_$key", $default_blocked ? '1' : '0');
+
+            trigger_port_sync();
+            json_response(['message' => "Custom game '$label' added", 'key' => $key], 201);
+        }
         break;
 
     case 'DELETE':
@@ -352,6 +415,25 @@ switch ($method) {
 
             trigger_port_sync();
             json_response(['message' => 'LAN client removed']);
+        }
+
+        // DELETE /port-blocking/custom-game/{key} — remove a custom game
+        if ($id === 'custom-game' && $action) {
+            $key = $action;
+            $game_ports_file = dirname(__DIR__) . '/config/game_ports.json';
+            $game_ports = json_decode(file_get_contents($game_ports_file), true) ?: [];
+
+            if (!isset($game_ports[$key])) json_error('Game not found', 404);
+
+            unset($game_ports[$key]);
+            file_put_contents($game_ports_file, json_encode($game_ports, JSON_PRETTY_PRINT));
+
+            // Clean up DB rules and settings
+            $conn->query("DELETE FROM port_blocking_rules WHERE game_key = '" . $conn->real_escape_string($key) . "'");
+            $conn->query("DELETE FROM settings WHERE setting_key = 'port_block_" . $conn->real_escape_string($key) . "'");
+
+            trigger_port_sync();
+            json_response(['message' => 'Custom game removed']);
         }
         break;
 

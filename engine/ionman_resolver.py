@@ -179,7 +179,7 @@ class Config:
     def _defaults(self):
         return {
             'upstreams': DEFAULT_UPSTREAMS,
-            'cache_size': 5000,
+            'cache_size': 50000,
             'cache_min_ttl': 60,
             'cache_max_ttl': 86400,
             'log_queries': True,
@@ -372,7 +372,7 @@ class DBLogger:
 class IonManResolver:
     def __init__(self):
         self.config = Config()
-        self.cache = LRUCache(maxsize=self.config.get('cache_size', 5000))
+        self.cache = LRUCache(maxsize=self.config.get('cache_size', 50000))
         self.stats = Stats()
         self.upstream = UpstreamResolver(self.config)
         self.logger = DBLogger(self.config)
@@ -472,10 +472,22 @@ class IonManResolver:
             time.sleep(3)
 
     def _config_reload_loop(self):
-        """Periodically reload config from file."""
+        """Periodically reload config from file and resize cache if needed."""
         while self.running:
             time.sleep(30)
+            old_cache_size = self.config.get('cache_size', 50000)
             self.config.load()
+            new_cache_size = self.config.get('cache_size', 50000)
+            if new_cache_size != old_cache_size:
+                print(f"[IonManResolver] Resizing cache: {old_cache_size} → {new_cache_size}")
+                old_cache = self.cache
+                self.cache = LRUCache(maxsize=new_cache_size)
+                # Copy existing entries to new cache
+                for key, val in old_cache.items():
+                    try:
+                        self.cache[key] = val
+                    except Exception:
+                        break  # New cache is full
 
     def run(self):
         """Start the UDP DNS server."""
@@ -489,7 +501,7 @@ class IonManResolver:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind((LISTEN_ADDR, LISTEN_PORT))
         print(f"[IonManResolver] Listening on {LISTEN_ADDR}:{LISTEN_PORT}")
-        print(f"[IonManResolver] Cache: {self.config.get('cache_size', 5000)} entries")
+        print(f"[IonManResolver] Cache: {self.config.get('cache_size', 50000)} entries")
         upstreams = self.config.get('upstreams', DEFAULT_UPSTREAMS)
         for u in upstreams:
             dot = ' (DoT)' if u.get('dot') else ''

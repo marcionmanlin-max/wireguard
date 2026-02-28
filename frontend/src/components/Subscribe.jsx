@@ -4,11 +4,16 @@ import PhAddressSelector from './PhAddressSelector';
 
 const API = '/dns/api/subscribe';
 
-const plans = [
-  { id: 'trial', name: 'Free Trial', price: '$0', php: '₱0', duration: '10 minutes', color: 'from-blue-600 to-cyan-500', features: ['DNS ad blocking', 'WireGuard VPN', 'Category blocking', '10-minute free trial'], badge: 'FREE' },
-  { id: 'client', name: 'Client Plan', price: '$25/mo', php: '₱1,441/mo', duration: '30 days', color: 'from-primary-600 to-primary-400', features: ['Everything in Trial', 'Unlimited usage', 'All category blocking', 'Priority support', 'Mobile app access'], badge: 'POPULAR', recommended: true },
-  { id: 'selfhost', name: 'Self-Hosted', price: '$50/mo', php: '₱2,882/mo', duration: '30 days', color: 'from-purple-600 to-pink-500', features: ['Full server installation', 'Your own domain', 'Unlimited peers', 'Installation support', 'All features unlocked'], badge: 'PRO' },
+// Fallback plans used only if API fetch fails
+const defaultPlans = [
+  { id: 'trial', slug: 'trial', name: 'Free Trial', price_php: 0, price_usd: 0, duration_type: 'minutes', duration_value: 10, color: 'from-blue-600 to-cyan-500', features: ['DNS ad blocking', 'WireGuard VPN', 'Category blocking', '10-minute free trial'], badge: 'FREE', is_trial: true },
+  { id: 'daily', slug: 'daily', name: 'Daily Pass', price_php: 5, price_usd: 0.09, duration_type: 'day', duration_value: 1, color: 'from-cyan-600 to-teal-500', features: ['DNS filtering', 'Game blocking', 'Category blocking'], badge: '1 DAY' },
+  { id: 'weekly', slug: 'weekly', name: 'Weekly', price_php: 25, price_usd: 0.43, duration_type: 'week', duration_value: 1, color: 'from-teal-600 to-emerald-500', features: ['DNS filtering', 'Game blocking', 'Category blocking', 'Speed control'], badge: '7 DAYS' },
+  { id: 'monthly', slug: 'monthly', name: 'Monthly', price_php: 100, price_usd: 1.74, duration_type: 'month', duration_value: 1, color: 'from-primary-600 to-primary-400', features: ['Everything included', 'Priority support', 'Speed control'], badge: 'POPULAR', is_recommended: true },
+  { id: 'selfhost', slug: 'selfhost', name: 'Self-Host', price_php: 500, price_usd: 8.69, duration_type: 'month', duration_value: 1, color: 'from-purple-600 to-pink-500', features: ['Full server installation', 'Unlimited peers', 'All features'], badge: 'PRO' },
 ];
+
+const planColors = ['from-blue-600 to-cyan-500', 'from-cyan-600 to-teal-500', 'from-teal-600 to-emerald-500', 'from-primary-600 to-primary-400', 'from-purple-600 to-pink-500', 'from-amber-600 to-yellow-500'];
 
 const comparisonData = [
   { feature: 'DNS Ad Blocking', ionman: true, pihole: true, adguard: true },
@@ -37,11 +42,37 @@ export default function Subscribe() {
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [plans, setPlans] = useState(defaultPlans);
 
   // Form state
   const [form, setForm] = useState({ email: '', password: '', full_name: '', phone: '', address: '', city: '', province: '', region: '', barangay: '' });
-  const [paymentForm, setPaymentForm] = useState({ plan: 'client', gcash_reference: '', gcash_sender_name: '', gcash_sender_number: '', card_number: '', card_expiry: '', card_cvv: '', card_name: '' });
+  const [paymentForm, setPaymentForm] = useState({ plan: 'monthly', gcash_reference: '', gcash_sender_name: '', gcash_sender_number: '', card_number: '', card_expiry: '', card_cvv: '', card_name: '' });
   const [payMethod, setPayMethod] = useState('gcash');
+
+  // Load plans from API
+  useEffect(() => {
+    fetch(`${API}?id=plans`).then(r => r.json()).then(data => {
+      if (data.plans) {
+        const apiPlans = Object.entries(data.plans).map(([slug, p], i) => ({
+          id: slug,
+          slug,
+          name: p.name,
+          price_php: p.price_php,
+          price_usd: p.price_usd,
+          duration_type: p.duration_type || 'month',
+          duration_value: p.duration_value || 1,
+          duration: p.duration,
+          color: planColors[i % planColors.length],
+          features: p.features || [],
+          badge: p.is_trial ? 'FREE' : p.is_recommended ? 'POPULAR' : p.duration_type === 'day' ? '1 DAY' : '',
+          is_trial: p.is_trial,
+          is_recommended: p.is_recommended,
+          speed_limit_mbps: p.speed_limit_mbps,
+        }));
+        if (apiPlans.length > 0) setPlans(apiPlans);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (token) {
@@ -229,17 +260,21 @@ export default function Subscribe() {
       <div className="max-w-5xl mx-auto px-4 py-12">
         <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2">Pricing</h2>
         <p className="text-dark-400 text-center mb-8">Start free, upgrade anytime. Pay via GCash.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {plans.map(plan => (
-            <div key={plan.id} className={`relative bg-dark-900 border ${plan.recommended ? 'border-primary-400 ring-1 ring-primary-400/30' : 'border-dark-700'} rounded-xl p-6`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {plans.map(plan => {
+            const durationLabel = plan.duration || `${plan.duration_value} ${plan.duration_type}${plan.duration_value > 1 ? 's' : ''}`;
+            const phpPrice = plan.price_php !== undefined ? `₱${Number(plan.price_php).toFixed(2)}` : plan.php;
+            const usdPrice = plan.price_usd !== undefined ? `$${Number(plan.price_usd).toFixed(2)}` : plan.price;
+            return (
+            <div key={plan.id} className={`relative bg-dark-900 border ${plan.is_recommended ? 'border-primary-400 ring-1 ring-primary-400/30' : 'border-dark-700'} rounded-xl p-6`}>
               {plan.badge && (
                 <span className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-gradient-to-r ${plan.color} rounded-full text-xs font-bold`}>
                   {plan.badge}
                 </span>
               )}
               <h3 className="text-white font-bold text-lg mt-2">{plan.name}</h3>
-              <p className="text-3xl font-bold text-white mt-2">{plan.price}</p>
-              <p className="text-dark-500 text-sm">{plan.php} • {plan.duration}</p>
+              <p className="text-3xl font-bold text-white mt-2">{phpPrice}</p>
+              <p className="text-dark-500 text-sm">{usdPrice} • {durationLabel}{plan.speed_limit_mbps ? ` • ${plan.speed_limit_mbps} Mbps` : ''}</p>
               <ul className="mt-4 space-y-2">
                 {plan.features.map((f, i) => (
                   <li key={i} className="flex items-center gap-2 text-sm text-dark-300">
@@ -247,11 +282,12 @@ export default function Subscribe() {
                   </li>
                 ))}
               </ul>
-              <button onClick={() => { setView('register'); }} className={`w-full mt-6 py-3 rounded-xl font-semibold text-sm ${plan.recommended ? 'bg-gradient-to-r from-primary-600 to-primary-400 text-white' : 'bg-dark-800 border border-dark-600 text-dark-300 hover:border-primary-500'} transition-colors`}>
-                {plan.id === 'trial' ? 'Start Free Trial' : 'Subscribe Now'}
+              <button onClick={() => { setView('register'); }} className={`w-full mt-6 py-3 rounded-xl font-semibold text-sm ${plan.is_recommended ? 'bg-gradient-to-r from-primary-600 to-primary-400 text-white' : 'bg-dark-800 border border-dark-600 text-dark-300 hover:border-primary-500'} transition-colors`}>
+                {plan.is_trial ? 'Start Free Trial' : 'Subscribe Now'}
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -488,8 +524,9 @@ export default function Subscribe() {
               <div>
                 <label className="block text-dark-400 text-xs mb-1">Select Plan</label>
                 <select value={paymentForm.plan} onChange={e => setPaymentForm({...paymentForm, plan: e.target.value})} className={inputClass}>
-                  <option value="client">Client - $25/mo (₱1,441)</option>
-                  <option value="selfhost">Self-Hosted - $50/mo (₱2,882)</option>
+                  {plans.filter(p => !p.is_trial).map(p => (
+                    <option key={p.id} value={p.id}>{p.name} - ₱{Number(p.price_php).toFixed(2)}</option>
+                  ))}
                 </select>
               </div>
 

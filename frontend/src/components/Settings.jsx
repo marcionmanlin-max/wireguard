@@ -166,7 +166,7 @@ export default function SettingsPage() {
           <h3 className="text-white font-semibold">Category Blocking</h3>
         </div>
         <p className="text-dark-500 text-xs mb-5">Toggle categories to instantly block/unblock entire domain groups. Click a card to view all domains.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {categories.map(cat => {
             const meta = CATEGORY_META[cat.key] || { label: cat.label, desc: '', icon: Ban, color: 'text-dark-300' }
             const Icon = meta.icon

@@ -174,8 +174,8 @@ export default function App() {
         </button>
       </aside>
 
-      <main className={`pt-14 md:pt-0 ${collapsed ? 'md:ml-16' : 'md:ml-64'} transition-all duration-200`}>
-        <div className="p-4 md:p-6">
+      <main className={`pt-14 md:pt-0 ${collapsed ? 'md:ml-16' : 'md:ml-64'} transition-all duration-200 min-w-0`}>
+        <div className="p-3 md:p-5 lg:p-6 max-w-full overflow-x-hidden">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/querylog" element={<QueryLog />} />

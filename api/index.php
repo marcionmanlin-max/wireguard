@@ -101,6 +101,9 @@ switch ($resource) {
     case 'subscribers':
         require_once __DIR__ . '/subscribers.php';
         break;
+    case 'plans':
+        require_once __DIR__ . '/plans.php';
+        break;
     case 'resolver':
         require_once __DIR__ . '/resolver.php';
         break;

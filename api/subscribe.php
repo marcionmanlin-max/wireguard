@@ -13,33 +13,42 @@
 
 $conn = db();
 
-// Pricing
-$plans = [
-    'trial' => [
-        'name'         => 'Free Trial',
-        'price_usd'    => 0,
-        'price_php'    => 0,
-        'duration'     => '10 minutes',
-        'duration_sec' => 600,
-        'features'     => ['DNS ad blocking', 'WireGuard VPN', 'Category blocking', '10-minute trial']
-    ],
-    'client' => [
-        'name'         => 'Client (Use Our Server)',
-        'price_usd'    => 25,
-        'price_php'    => 1441,
-        'duration'     => '1 month',
-        'duration_sec' => 2592000,
-        'features'     => ['DNS ad blocking', 'WireGuard VPN', 'Category blocking', 'All features', 'Priority support']
-    ],
-    'selfhost' => [
-        'name'         => 'Self-Hosted Installation',
-        'price_usd'    => 50,
-        'price_php'    => 2882,
-        'duration'     => '1 month',
-        'duration_sec' => 2592000,
-        'features'     => ['Full server installation', 'Your own domain', 'Unlimited peers', 'All features', 'Installation support']
-    ],
-];
+// Load plans from database
+function load_plans($conn) {
+    $result = $conn->query("SELECT * FROM subscription_plans WHERE is_active = 1 ORDER BY sort_order ASC");
+    $plans = [];
+    while ($row = $result->fetch_assoc()) {
+        $plans[$row['slug']] = [
+            'id'              => (int)$row['id'],
+            'name'            => $row['name'],
+            'price_usd'       => (float)$row['price_usd'],
+            'price_php'       => (float)$row['price_php'],
+            'duration_type'   => $row['duration_type'],
+            'duration_value'  => (int)$row['duration_value'],
+            'duration'        => format_plan_duration($row['duration_type'], $row['duration_value']),
+            'duration_sec'    => plan_duration_seconds($row['duration_type'], $row['duration_value']),
+            'speed_limit_mbps'=> $row['speed_limit_mbps'] ? (int)$row['speed_limit_mbps'] : null,
+            'description'     => $row['description'] ?? '',
+            'features'        => json_decode($row['features'] ?? '[]', true),
+            'is_trial'        => (bool)$row['is_trial'],
+            'is_recommended'  => (bool)$row['is_recommended'],
+        ];
+    }
+    return $plans;
+}
+
+function format_plan_duration($type, $value) {
+    $labels = ['minutes' => 'minute', 'day' => 'day', 'week' => 'week', 'month' => 'month'];
+    $label = $labels[$type] ?? $type;
+    return $value . ' ' . $label . ($value > 1 ? 's' : '');
+}
+
+function plan_duration_seconds($type, $value) {
+    $multipliers = ['minutes' => 60, 'day' => 86400, 'week' => 604800, 'month' => 2592000];
+    return ($multipliers[$type] ?? 86400) * $value;
+}
+
+$plans = load_plans($conn);
 
 // Helper: authenticate subscriber by token
 function auth_subscriber($conn) {

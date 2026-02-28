@@ -17,7 +17,7 @@ $DEFAULT_CONFIG = [
         ['host' => '8.8.8.8',  'port' => 53, 'dot' => false, 'name' => 'Google'],
         ['host' => '9.9.9.9',  'port' => 53, 'dot' => false, 'name' => 'Quad9'],
     ],
-    'cache_size'    => 5000,
+    'cache_size'    => 50000,
     'cache_min_ttl' => 60,
     'cache_max_ttl' => 86400,
     'log_queries'   => true,

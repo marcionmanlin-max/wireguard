@@ -5,6 +5,40 @@ import {
   ChevronDown, ChevronUp, Server, Settings2, Eye, Loader2, X,
   TrendingUp, Wifi
 } from 'lucide-react'
+
+// ─── BlockToggle Component ──────────────────────────────
+function BlockToggle({ domain, blocked }) {
+  const [isBlocked, setIsBlocked] = useState(blocked)
+  const [loading, setLoading] = useState(false)
+
+  const toggleBlock = async () => {
+    setLoading(true)
+    try {
+      const action = isBlocked ? 'unblock' : 'block'
+      await fetch(`/makodns/api/blocklists.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, action })
+      })
+      setIsBlocked(!isBlocked)
+    } catch (e) {
+      alert('Failed to toggle block')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      className={`ml-2 px-2 py-1 rounded text-xs font-bold ${isBlocked ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
+      onClick={toggleBlock}
+      disabled={loading}
+      title={isBlocked ? 'Unblock domain' : 'Block domain'}
+    >
+      {loading ? '...' : isBlocked ? 'Unblock' : 'Block'}
+    </button>
+  )
+}
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, RadialBarChart,
@@ -627,6 +661,7 @@ function ResolverLog() {
                         {/* mini bar */}
                         <div className="mt-0.5 h-0.5 rounded-full bg-dark-800 overflow-hidden w-full">
                           <div className="h-full rounded-full bg-primary-400/50" style={{ width: `${barW}%` }} />
+                          <BlockToggle domain={row.qname} blocked={row.blocked} />
                         </div>
                       </td>
                       <td className="py-1.5 pr-2 text-dark-500">{row.qtype}</td>

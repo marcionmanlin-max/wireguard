@@ -53,3 +53,4 @@ twa/app-release-signed.apk.idsig
 twa/build/
 twa/store_icon.png
 twa/gradle.properties
+engine/__pycache__/

@@ -36,6 +36,14 @@ export default function PortBlocking() {
   // Game detail modal
   const [gameModal, setGameModal] = useState(null)
 
+  // Custom game/port modal
+  const [customModal, setCustomModal] = useState(false)
+  const [customForm, setCustomForm] = useState({
+    label: '', description: '', color: '#6B7280', icon: 'Gamepad2',
+    default_blocked: true, domains: '', ports: [{ proto: 'tcp', range: '', desc: '' }]
+  })
+  const [customSaving, setCustomSaving] = useState(false)
+
   // Search
   const [search, setSearch] = useState('')
 
@@ -230,6 +238,12 @@ export default function PortBlocking() {
             <span className="hidden sm:inline">Add LAN Client</span>
             <span className="sm:hidden">+PC</span>
           </button>
+          <button onClick={() => { setCustomModal(true); setCustomForm({ label: '', description: '', color: '#6B7280', icon: 'Gamepad2', default_blocked: true, domains: '', ports: [{ proto: 'tcp', range: '', desc: '' }] }) }}
+            className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm transition-colors">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Add Custom Port</span>
+            <span className="sm:hidden">+Port</span>
+          </button>
         </div>
       </div>
 
@@ -249,7 +263,7 @@ export default function PortBlocking() {
       {/* Global Game Defaults */}
       <div className="bg-dark-900 border border-dark-800 rounded-xl p-4">
         <h2 className="text-sm font-semibold text-dark-300 uppercase tracking-wider mb-3">Game Port Definitions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {games.map(game => {
             const Icon = GAME_ICONS[game.icon] || Gamepad2
             const isBlocked = globalBlocks[game.key] ?? game.default_blocked
@@ -556,6 +570,98 @@ export default function PortBlocking() {
               {addSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Add Client
             </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Game/Port Modal */}
+      {customModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setCustomModal(false)}>
+          <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-dark-700">
+              <h3 className="text-white font-semibold flex items-center gap-2"><Plus className="w-4 h-4 text-purple-400" /> Add Custom Game / Port</h3>
+              <button onClick={() => setCustomModal(false)} className="p-1 text-dark-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm text-dark-300 mb-1">Game / Service Name *</label>
+                  <input type="text" placeholder="My Custom Game" value={customForm.label}
+                    onChange={e => setCustomForm(f => ({ ...f, label: e.target.value }))}
+                    className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-200 text-sm focus:border-primary-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm text-dark-300 mb-1">Color</label>
+                  <input type="color" value={customForm.color}
+                    onChange={e => setCustomForm(f => ({ ...f, color: e.target.value }))}
+                    className="w-full h-9 bg-dark-800 border border-dark-700 rounded-lg cursor-pointer" />
+                </div>
+                <div>
+                  <label className="block text-sm text-dark-300 mb-1">Default</label>
+                  <select value={customForm.default_blocked ? '1' : '0'}
+                    onChange={e => setCustomForm(f => ({ ...f, default_blocked: e.target.value === '1' }))}
+                    className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-200 text-sm focus:border-primary-500 focus:outline-none">
+                    <option value="1">Blocked</option>
+                    <option value="0">Allowed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-dark-300 mb-1">Domains <span className="text-dark-500">(comma separated, optional)</span></label>
+                <input type="text" placeholder="example.com, api.example.com" value={customForm.domains}
+                  onChange={e => setCustomForm(f => ({ ...f, domains: e.target.value }))}
+                  className="w-full px-3 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-200 text-sm focus:border-primary-500 focus:outline-none" />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm text-dark-300">Ports</label>
+                  <button onClick={() => setCustomForm(f => ({ ...f, ports: [...f.ports, { proto: 'tcp', range: '', desc: '' }] }))}
+                    className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1"><Plus className="w-3 h-3" /> Add Port</button>
+                </div>
+                <div className="space-y-2">
+                  {customForm.ports.map((p, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <select value={p.proto} onChange={e => { const ports = [...customForm.ports]; ports[idx].proto = e.target.value; setCustomForm(f => ({ ...f, ports })) }}
+                        className="px-2 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-200 text-xs focus:border-primary-500 focus:outline-none w-20">
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                      </select>
+                      <input type="text" placeholder="5000-5221" value={p.range}
+                        onChange={e => { const ports = [...customForm.ports]; ports[idx].range = e.target.value; setCustomForm(f => ({ ...f, ports })) }}
+                        className="flex-1 px-2 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-200 text-xs focus:border-primary-500 focus:outline-none font-mono" />
+                      <input type="text" placeholder="Description" value={p.desc}
+                        onChange={e => { const ports = [...customForm.ports]; ports[idx].desc = e.target.value; setCustomForm(f => ({ ...f, ports })) }}
+                        className="flex-1 px-2 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-200 text-xs focus:border-primary-500 focus:outline-none" />
+                      {customForm.ports.length > 1 && (
+                        <button onClick={() => setCustomForm(f => ({ ...f, ports: f.ports.filter((_, i) => i !== idx) }))}
+                          className="p-1 text-dark-500 hover:text-danger-400"><Trash2 className="w-3 h-3" /></button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={async () => {
+                  setCustomSaving(true)
+                  try {
+                    const domains = customForm.domains.split(',').map(d => d.trim()).filter(Boolean)
+                    const ports = customForm.ports.filter(p => p.range.trim())
+                    await api.addCustomGame({ ...customForm, domains, ports })
+                    setCustomModal(false)
+                    showMsg('Custom game/port added')
+                    fetchData()
+                  } catch (e) { setError(e.message) }
+                  finally { setCustomSaving(false) }
+                }}
+                disabled={customSaving || !customForm.label.trim() || (!customForm.domains.trim() && !customForm.ports.some(p => p.range.trim()))}
+                className="w-full btn bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center gap-2 disabled:opacity-50">
+                {customSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Add Custom Game / Port
+              </button>
             </div>
           </div>
         </div>

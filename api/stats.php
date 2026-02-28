@@ -162,26 +162,58 @@ while ($row = $top_allowed->fetch_assoc()) {
 // Top games blocked (by DNS hits in last 24h)
 $game_ports_file = dirname(__DIR__) . '/config/game_ports.json';
 $top_games_data = [];
+$top_ports_data = [];
 if (file_exists($game_ports_file)) {
     $game_ports = json_decode(file_get_contents($game_ports_file), true) ?: [];
+
+    // Get global game block settings
+    $game_block_settings = [];
+    $gbs = $conn->query("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'port_block_%'");
+    if ($gbs) { while ($r = $gbs->fetch_assoc()) $game_block_settings[$r['setting_key']] = $r['setting_value']; }
+
     foreach ($game_ports as $key => $info) {
-        if (empty($info['domains'])) continue;
-        $escaped = array_map(fn($d) => "'" . $conn->real_escape_string($d) . "'", $info['domains']);
-        $in = implode(',', $escaped);
-        $res = $conn->query("SELECT COUNT(*) as cnt FROM query_log WHERE logged_at >= NOW() - INTERVAL 24 HOUR AND domain IN ($in)");
-        $hits = (int)($res ? $res->fetch_assoc()['cnt'] : 0);
+        $global_blocked = isset($game_block_settings["port_block_$key"])
+            ? $game_block_settings["port_block_$key"] === '1'
+            : ($info['default_blocked'] ?? false);
+
+        // DNS hits
+        $hits = 0;
+        if (!empty($info['domains'])) {
+            $escaped = array_map(fn($d) => "'" . $conn->real_escape_string($d) . "'", $info['domains']);
+            $in = implode(',', $escaped);
+            $res = $conn->query("SELECT COUNT(*) as cnt FROM query_log WHERE logged_at >= NOW() - INTERVAL 24 HOUR AND domain IN ($in)");
+            $hits = (int)($res ? $res->fetch_assoc()['cnt'] : 0);
+        }
         if ($hits > 0) {
             $top_games_data[] = [
-                'key'   => $key,
-                'label' => $info['label'] ?? $key,
-                'icon'  => $info['icon'] ?? 'Gamepad2',
-                'color' => $info['color'] ?? '#666666',
-                'hits'  => $hits,
+                'key'     => $key,
+                'label'   => $info['label'] ?? $key,
+                'icon'    => $info['icon'] ?? 'Gamepad2',
+                'color'   => $info['color'] ?? '#666666',
+                'hits'    => $hits,
+                'blocked' => $global_blocked,
+            ];
+        }
+
+        // Collect ports for top_ports
+        foreach ($info['ports'] ?? [] as $port_def) {
+            $top_ports_data[] = [
+                'proto'      => $port_def['proto'],
+                'range'      => $port_def['range'],
+                'desc'       => $port_def['desc'] ?? '',
+                'game_key'   => $key,
+                'game_label' => $info['label'] ?? $key,
+                'game_icon'  => $info['icon'] ?? 'Gamepad2',
+                'game_color' => $info['color'] ?? '#666666',
+                'hits'       => $hits,
+                'blocked'    => $global_blocked,
             ];
         }
     }
     usort($top_games_data, fn($a, $b) => $b['hits'] - $a['hits']);
     $top_games_data = array_slice($top_games_data, 0, 8);
+    usort($top_ports_data, fn($a, $b) => $b['hits'] - $a['hits']);
+    $top_ports_data = array_slice($top_ports_data, 0, 12);
 }
 
 // DNS service status
@@ -206,6 +238,7 @@ json_response([
     'top_allowed' => $top_allowed_data,
     'top_clients' => $top_clients_data,
     'top_games' => $top_games_data,
+    'top_ports' => $top_ports_data,
     'client_names' => $wg_client_map,
     'client_types' => $client_types,
     'dns_running' => $dnsmasq_running,

@@ -72,6 +72,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', async () => {
+  app.isQuiting = true;
   clearInterval(statusPoll);
   if (!store.get('alwaysOnVPN')) {
     await tunnelDisconnect();
@@ -86,7 +87,7 @@ function createMainWindow() {
     resizable:       false,
     frame:           false,
     transparent:     false,
-    skipTaskbar:     true,
+    skipTaskbar:     false,
     show:            false,
     alwaysOnTop:     false,
     icon:            iconPath('icon.ico'),
@@ -105,13 +106,14 @@ function createMainWindow() {
   mainWindow.loadURL(url);
 
   mainWindow.on('close', (e) => {
-    e.preventDefault();
-    mainWindow.hide();
+    if (!app.isQuiting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
   });
 
-  mainWindow.on('blur', () => {
-    if (!IS_DEV) mainWindow.hide();
-  });
+  // Don't auto-hide on blur — let the user interact with other windows
+  // without losing the app. They can minimize or close to tray.
 }
 
 function showWindow() {
@@ -431,7 +433,7 @@ ipcMain.handle('open-dashboard', () => {
 ipcMain.handle('open-external', (_, url) => shell.openExternal(url));
 
 ipcMain.handle('set-auto-start', (_, enable) => {
-  app.setLoginItemSettings({ openAtLogin: enable, openAsHidden: true });
+  app.setLoginItemSettings({ openAtLogin: enable, openAsHidden: false });
   store.set('autoStart', enable);
   return true;
 });
@@ -439,7 +441,9 @@ ipcMain.handle('set-auto-start', (_, enable) => {
 ipcMain.handle('check-wg-installed', () => isWireGuardInstalled());
 
 ipcMain.handle('close-window',    () => mainWindow?.hide());
-ipcMain.handle('minimize-window', () => mainWindow?.minimize());
+ipcMain.handle('minimize-window', () => {
+  mainWindow?.minimize();
+});
 
 ipcMain.handle('wg-tunnel-stats', () => {
   try {
