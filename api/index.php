@@ -20,14 +20,25 @@ if ($method !== 'OPTIONS' && !($resource === 'auth' && $id === 'login') && $reso
     $token = str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION'] ?? '');
     if ($token) {
         $auth_conn = db();
+        // Check admin token
         $auth_stmt = $auth_conn->prepare("SELECT id FROM auth_tokens WHERE token = ? AND expires_at > NOW()");
+        $auth_valid = false;
         if ($auth_stmt) {
             $auth_stmt->bind_param('s', $token);
             $auth_stmt->execute();
-            $auth_valid = $auth_stmt->get_result()->fetch_assoc();
-            if (!$auth_valid) {
-                json_response(['error' => 'Unauthorized', 'authenticated' => false], 401);
+            $auth_valid = (bool)$auth_stmt->get_result()->fetch_assoc();
+        }
+        // Also accept valid subscriber tokens for read-only endpoints
+        if (!$auth_valid && in_array($resource, ['stats'])) {
+            $sub_stmt = $auth_conn->prepare("SELECT id FROM subscriber_tokens WHERE token = ? AND expires_at > NOW()");
+            if ($sub_stmt) {
+                $sub_stmt->bind_param('s', $token);
+                $sub_stmt->execute();
+                $auth_valid = (bool)$sub_stmt->get_result()->fetch_assoc();
             }
+        }
+        if (!$auth_valid) {
+            json_response(['error' => 'Unauthorized', 'authenticated' => false], 401);
         }
     } else if ($resource !== 'auth' && $resource !== '') {
         // Check if auth is set up (has any password hash)

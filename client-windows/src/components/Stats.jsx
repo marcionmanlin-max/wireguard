@@ -8,21 +8,23 @@ export default function Stats({ showToast }) {
   const [tunnel,   setTunnel]   = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [serverUrl, setServerUrl] = useState('');
+  const [subToken,  setSubToken]  = useState('');
 
   useEffect(() => {
-    window.ionman.getStore('serverUrl').then(url => {
-      setServerUrl(url || '');
-      if (url) fetchStats(url);
+    window.ionman.getAllStore().then(s => {
+      setServerUrl(s.serverUrl || '');
+      setSubToken(s.subToken || '');
+      if (s.serverUrl) fetchStats(s.serverUrl, s.subToken || '');
     });
     loadTunnelStats();
   }, []);
 
-  async function fetchStats(url) {
+  async function fetchStats(url, token = subToken) {
     try {
       const base = url.replace(/\/$/, '');
-      const r    = await fetch(`${base}/api/stats.php`, {
-        headers: { 'X-IonMan-Client': 'windows-app' }
-      });
+      const headers = { 'X-IonMan-Client': 'windows-app' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      const r = await fetch(`${base}/api/stats`, { headers });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
       setStats(data);
@@ -95,7 +97,7 @@ export default function Stats({ showToast }) {
             <button
               className="btn btn-ghost"
               style={{ marginTop: 12 }}
-              onClick={() => fetchStats(serverUrl)}
+              onClick={() => fetchStats(serverUrl, subToken)}
             >
               Refresh
             </button>
@@ -105,7 +107,7 @@ export default function Stats({ showToast }) {
             Could not load stats.{' '}
             <span
               style={{ color: '#6366f1', cursor: 'pointer', textDecoration: 'underline' }}
-              onClick={() => { setLoading(true); fetchStats(serverUrl); }}
+              onClick={() => { setLoading(true); fetchStats(serverUrl, subToken); }}
             >
               Retry
             </span>

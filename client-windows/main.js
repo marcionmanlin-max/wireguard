@@ -201,7 +201,14 @@ async function tunnelConnect() {
     // Install tunnel as Windows service (requires admin — app runs as admin)
     exec(`"${WG_EXE}" /installtunnelservice "${configPath}"`, (err, stdout, stderr) => {
       if (err && !err.message.includes('already installed')) {
-        resolve({ ok: false, error: err.message });
+        const msg = err.message || '';
+        const isAdmin = msg.toLowerCase().includes('access') || msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('privilege');
+        resolve({
+          ok: false,
+          error: isAdmin
+            ? 'Access denied — please right-click IonMan DNS.exe and choose "Run as administrator", then try again.'
+            : msg,
+        });
         return;
       }
       // Wait briefly for service to start
@@ -347,6 +354,8 @@ ipcMain.handle('subscriber-login', async (_, { serverUrl, email, password }) => 
         try {
           const data = JSON.parse(body);
           if (data.wg_config) {
+            // Save subscriber token for stats API access
+            if (data.token) store.set('subToken', data.token);
             resolve({ ok: true, config: data.wg_config, name: data.name || email });
           } else if (data.active === false) {
             // Logged in but subscription expired
