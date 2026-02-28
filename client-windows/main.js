@@ -251,9 +251,9 @@ async function tunnelDisconnect() {
 function getTunnelStatus(tunnelNameOrPath) {
   try {
     if (!isWireGuardInstalled()) return false;
-    // Accept either a name or a full path — derive name from path if needed
+    // wg.exe is the CLI tool; wireguard.exe is the GUI — must use wg.exe for 'show'
     const name = tunnelNameOrPath.endsWith('.conf') ? tunnelNameFromPath(tunnelNameOrPath) : tunnelNameOrPath;
-    const output = execSync(`"${WG_EXE}" show "${name}" 2>&1`, {
+    const output = execSync(`"${WG_UTIL}" show "${name}" 2>&1`, {
       timeout: 3000, encoding: 'utf8'
     });
     return output.includes('interface:') || output.includes('public key:');
