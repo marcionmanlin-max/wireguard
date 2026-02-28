@@ -259,19 +259,113 @@ ipcMain.handle('tunnel-status',      () => ({
 
 ipcMain.handle('save-wg-config', async (_, configText) => {
   try {
-    // Parse tunnel name from config
     const nameMatch = configText.match(/\[Interface\]/i);
     if (!nameMatch) return { ok: false, error: 'Invalid WireGuard config' };
+
+    // Extract tunnel name from config comment if present
+    const nameHint = configText.match(/^#\s*Name\s*=\s*(.+)$/im);
+    const tunnelName = (nameHint?.[1]?.trim()) || store.get('tunnelName') || 'IonManDNS';
+    store.set('tunnelName', tunnelName);
 
     const configPath = store.get('configPath');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(configPath, configText, { encoding: 'utf8', mode: 0o600 });
 
     store.set('setupDone', true);
-    return { ok: true, path: configPath };
+    return { ok: true, path: configPath, tunnelName };
   } catch (e) {
     return { ok: false, error: e.message };
   }
+});
+
+// Open native file picker for .conf files
+ipcMain.handle('open-conf-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title:       'Import WireGuard Config',
+    buttonLabel: 'Import',
+    filters:     [{ name: 'WireGuard Config', extensions: ['conf', 'txt'] }],
+    properties:  ['openFile'],
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false };
+  try {
+    const text = fs.readFileSync(result.filePaths[0], 'utf8');
+    return { ok: true, text, filename: path.basename(result.filePaths[0]) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// Open native file picker for QR image, return base64 data URL
+ipcMain.handle('open-qr-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title:       'Open WireGuard QR Code Image',
+    buttonLabel: 'Open',
+    filters:     [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp'] }],
+    properties:  ['openFile'],
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false };
+  try {
+    const buf  = fs.readFileSync(result.filePaths[0]);
+    const ext  = path.extname(result.filePaths[0]).slice(1).toLowerCase();
+    const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+    return { ok: true, dataUrl: `data:${mime};base64,${buf.toString('base64')}` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// Subscriber credential login — posts to the IonMan server, returns WireGuard config
+ipcMain.handle('subscriber-login', async (_, { serverUrl, email, password }) => {
+  const https = require('https');
+  const http  = require('http');
+  const url   = require('url');
+
+  const base   = serverUrl.replace(/\/+$/, '');
+  const parsed = url.parse(base);
+  const lib    = parsed.protocol === 'https:' ? https : http;
+  // Strip trailing /dns if present in pathname so we can append /api/... cleanly
+  const apiBase = (parsed.pathname || '').replace(/\/+$/, '');
+
+  const postData = JSON.stringify({ email, password });
+
+  return new Promise((resolve) => {
+    const req = lib.request({
+      hostname: parsed.hostname,
+      port:     parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path:     apiBase + '/api/subscribe/login',
+      method:   'POST',
+      headers:  {
+        'Content-Type':   'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'X-IonMan-Client': 'windows-app',
+      },
+      rejectUnauthorized: false,
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          if (data.wg_config) {
+            resolve({ ok: true, config: data.wg_config, name: data.name || email });
+          } else if (data.active === false) {
+            // Logged in but subscription expired
+            resolve({ ok: false, error: 'Subscription expired. Please renew via GCash: ' + (data.gcash?.number || '09626616298') });
+          } else if (data.error) {
+            resolve({ ok: false, error: data.error });
+          } else {
+            resolve({ ok: false, error: 'No WireGuard config in response. Contact admin.' });
+          }
+        } catch {
+          resolve({ ok: false, error: 'Server returned invalid response' });
+        }
+      });
+    });
+    req.on('error', (e) => resolve({ ok: false, error: e.message }));
+    req.setTimeout(10000, () => { req.destroy(); resolve({ ok: false, error: 'Connection timed out' }); });
+    req.write(postData);
+    req.end();
+  });
 });
 
 ipcMain.handle('open-dashboard', () => {

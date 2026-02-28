@@ -72,7 +72,7 @@ export default function Setup({ onComplete, showToast }) {
   // screens: 'welcome' | 'method' | 'qr' | 'file' | 'creds' | 'preview' | 'done'
   const [screen, setScreen] = useState('welcome');
 
-  const [serverUrl,  setServerUrl]  = useState('');
+  const [serverUrl,  setServerUrl]  = useState('https://dns.makoyot.xyz/dns');
   const [email,      setEmail]      = useState('');
   const [password,   setPassword]   = useState('');
   const [configText, setConfigText] = useState('');

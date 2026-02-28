@@ -3,19 +3,28 @@
  */
 import React, { useState, useEffect } from 'react';
 
+const DEFAULT_SERVER = 'https://dns.makoyot.xyz/dns';
+
 export default function Settings({ showToast, onSetupDone }) {
-  const [serverUrl,  setServerUrl]  = useState('');
+  const [serverUrl,  setServerUrl]  = useState(DEFAULT_SERVER);
   const [autoStart,  setAutoStart]  = useState(false);
   const [alwaysOn,   setAlwaysOn]   = useState(false);
   const [adminMode,  setAdminMode]  = useState(false);
   const [tunnelName, setTunnelName] = useState('IonManDNS');
-  const [showConfig, setShowConfig] = useState(false);
-  const [configText, setConfigText] = useState('');
   const [saving,     setSaving]     = useState(false);
+  const [testing,    setTesting]    = useState(false);
+  const [testResult, setTestResult] = useState(null); // null | 'ok' | 'fail'
+
+  // Subscribe / re-import state
+  const [subMode,    setSubMode]    = useState(null); // null | 'login' | 'file' | 'qr'
+  const [email,      setEmail]      = useState('');
+  const [password,   setPassword]   = useState('');
+  const [subLoading, setSubLoading] = useState('');
+  const [subError,   setSubError]   = useState('');
 
   useEffect(() => {
     window.ionman.getAllStore().then(s => {
-      setServerUrl (s.serverUrl  || '');
+      setServerUrl (s.serverUrl  || DEFAULT_SERVER);
       setAutoStart (!!s.autoStart);
       setAlwaysOn  (!!s.alwaysOnVPN);
       setAdminMode (!!s.adminMode);
